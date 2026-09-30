@@ -1,0 +1,10 @@
+.env
+__pycache__/
+venv/
+*.pem
+*.ppk
+*.key
+id_ed25519
+id_rsa
+.DS_Store
+```[cite: 7]

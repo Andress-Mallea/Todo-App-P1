@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Lista de Tareas</title>
+</head>
+<body>
+    <h1>Mis Tareas (To-Do)</h1>
+
+    <!-- Formulario para agregar tareas -->
+    <form method="post" action="{{ url_for('create') }}">
+        <input type="text" name="title" placeholder="¿Qué necesitas hacer?" required>
+        <button type="submit">Guardar Tarea</button>
+    </form>
+
+    <hr>
+
+    <!-- Lista de tareas desde la base de datos -->
+    <ul>
+        {% for todo in todos %}
+            <li style="margin-bottom: 10px;">
+                <strong>{{ todo.title }}</strong> 
+                <small>({{ todo.created_at.strftime('%Y-%m-%d %H:%M') }})</small>
+                
+                <!-- Botón de eliminación mediante POST -->
+                <form method="post" action="{{ url_for('delete', todo_id=todo.id) }}" style="display:inline;">
+                    <button type="submit" style="background-color: red; color: white; border: none; padding: 2px 5px; cursor: pointer;">
+                        Eliminar
+                    </button>
+                </form>
+            </li>
+        {% else %}
+            <li>No hay tareas guardadas en la base de datos.</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

@@ -1,0 +1,68 @@
+
+services:
+  # 1. Base de Datos
+  db:
+    image: postgres:16
+    container_name: postgres_db
+    restart: always
+    environment:
+      - POSTGRES_USER=app
+      - POSTGRES_PASSWORD=123qwe
+      - POSTGRES_DB=movies_database
+    volumes:
+      - datos_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d movies_database"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Tu aplicación Flask (API/Portafolio)
+  web:
+    build: .
+    container_name: flask_app
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://app:123qwe@db:5432/movies_database
+    volumes:
+      - .:/site
+    command: ["gunicorn", "--preload", "--config", "gunicorn.conf.py", "--bind", "0.0.0.0:8000", "app:app"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # 3. Tu panel administrador de Django
+  admin_django:
+    build: .
+    container_name: django_app
+    restart: always
+    environment:
+      - DB_NAME=movies_database
+      - DB_USER=app
+      - DB_PASSWORD=123qwe
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DJANGO_SUPERUSER_USERNAME=admin
+      - DJANGO_SUPERUSER_EMAIL=admin@ejemplo.com
+      - DJANGO_SUPERUSER_PASSWORD=supersecreto123
+    command: ["sh", "-c", "python manage.py migrate && python manage.py collectstatic --noinput && python manage.py createsuperuser --noinput || true && gunicorn --config gunicorn.conf.py --bind 0.0.0.0:8080 config.wsgi:application"]
+    volumes:
+      - static_files:/site/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+  nginx:
+    image: nginx:1.25.3
+    container_name: nginx_proxy
+    restart: always
+    ports:
+      - "80:80" 
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_files:/site/staticfiles:ro
+    depends_on:
+      - web
+      - admin_django
+volumes:
+  datos_pg:
+  static_files:

@@ -1,0 +1,8 @@
+Flask==3.1.1
+Flask-SQLAlchemy==3.1.1
+psycopg2-binary==2.9.10
+Django==4.2.11
+python-dotenv==1.1.1
+gunicorn==23.0.0
+Flask-Migrate==4.1.0
+whitenoise==6.6.0
