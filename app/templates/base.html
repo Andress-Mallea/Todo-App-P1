@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Todo App{% endblock %}</title>
+    <!-- Si ya tienes tu style.css, asegúrate de que la ruta esté correcta aquí -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* Regla obligatoria según la guía para que los elementos ocultos realmente desaparezcan */
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+    <header class="site-header">
+        <h1><a href="{{ url_for('todos.index') }}">Todo App</a></h1>
+        <nav class="site-nav">
+            <a href="{{ url_for('restaurant.page') }}" class="btn btn-small btn-light">Restaurant</a>
+            <span id="who" class="who"></span>
+            <button type="button" id="logout" class="btn btn-small btn-light" hidden>Sign out</button>
+        </nav>
+    </header>
+
+    <main class="container">
+        <p id="message" class="flash" hidden></p>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        Flask + PostgreSQL + Flask-Migrate + JWT
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

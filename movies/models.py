@@ -8,6 +8,7 @@ class Todo(models.Model):
 
     class Meta:
         db_table = 'todos' # Debe coincidir con la tabla que creó Flask
+        managed = False
         verbose_name = 'Tarea'
         verbose_name_plural = 'Tareas'
 

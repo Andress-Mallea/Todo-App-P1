@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}My Todos{% endblock %}
+
+{% block content %}
+    {# Se muestra SIN token. #}
+    <section id="auth-view" class="card auth-card" hidden>
+        <h2>Sign in</h2>
+        <form id="login-form" class="todo-form">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" required autocomplete="username">
+            
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required autocomplete="current-password">
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Sign in</button>
+                <button type="button" id="register" class="btn">Create account</button>
+            </div>
+        </form>
+    </section>
+
+    {# Se muestra CON un token. Llenado por app.js consultando GET /api/todos. #}
+    <div id="todos-view" hidden>
+        <section class="card">
+            <h2>Add a todo</h2>
+            <form id="create-form" class="todo-form">
+                <input type="text" name="title" placeholder="What needs to be done?" required maxlength="200">
+                <textarea name="description" placeholder="Optional details" rows="2"></textarea>
+                <button type="submit" class="btn btn-primary">Add</button>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>Todos <span id="count" class="count"></span></h2>
+            <ul id="todo-list" class="todo-list"></ul>
+            <p id="empty" class="empty" hidden>No todos yet. Add one above.</p>
+        </section>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}

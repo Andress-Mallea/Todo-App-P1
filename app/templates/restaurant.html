@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Restaurant{% endblock %}
+
+{% block content %}
+    <style>
+        .tabs { display: flex; flex-wrap: wrap; gap: .4rem; }
+        .table-wrap { overflow-x: auto; }
+        .data-table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+        .data-table th, .data-table td { border: 1px solid #ddd; padding: .3rem .5rem; text-align: left; white-space: nowrap; }
+        .data-table th { background: #f3f3f3; }
+        .pager { display: flex; gap: .5rem; margin-top: .75rem; }
+    </style>
+
+    <section id="need-login" class="card" hidden>
+        <p>Necesitas iniciar sesión para ver los datos. <a href="{{ url_for('todos.index') }}">Ir al login</a></p>
+    </section>
+
+    <div id="restaurant-view" hidden>
+        <section class="card">
+            <h2>Base de datos del restaurante</h2>
+            <div id="tabs" class="tabs"></div>
+        </section>
+
+        <section class="card">
+            <h2 id="table-title"></h2>
+            <p id="table-info"></p>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead id="data-head"></thead>
+                    <tbody id="data-body"></tbody>
+                </table>
+            </div>
+            <div class="pager">
+                <button type="button" id="prev" class="btn btn-small btn-light">← Anterior</button>
+                <button type="button" id="next" class="btn btn-small btn-light">Siguiente →</button>
+            </div>
+        </section>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/restaurant.js') }}"></script>
+{% endblock %}
