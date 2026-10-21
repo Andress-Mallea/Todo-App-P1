@@ -6,18 +6,8 @@
     {# Se muestra SIN token. #}
     <section id="auth-view" class="card auth-card" hidden>
         <h2>Sign in</h2>
-        <form id="login-form" class="todo-form">
-            <label for="username">Username</label>
-            <input type="text" id="username" name="username" required autocomplete="username">
-            
-            <label for="password">Password</label>
-            <input type="password" id="password" name="password" required autocomplete="current-password">
-            
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">Sign in</button>
-                <button type="button" id="register" class="btn">Create account</button>
-            </div>
-        </form>
+        <p>Auth0 muestra el inicio de sesión y el registro, y te devuelve aquí.</p>
+        <button type="button" id="login" class="btn btn-primary">Sign in with Auth0</button>
     </section>
 
     {# Se muestra CON un token. Llenado por app.js consultando GET /api/todos. #}
@@ -40,5 +30,6 @@
 {% endblock %}
 
 {% block scripts %}
+    <script>window.AUTH0 = {{ auth0_config|tojson }};</script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 {% endblock %}

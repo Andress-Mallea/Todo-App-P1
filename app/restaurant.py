@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, render_template, request
 from sqlalchemy import text
+from .auth import requires_auth
 
-from .auth import requires_permission
 from .extensions import db
 
 bp = Blueprint("restaurant", __name__)
@@ -33,7 +33,7 @@ def page():
 
 
 @bp.get("/api/restaurant/<table>")
-@requires_permission("get:restaurant")
+@requires_auth("get:restaurant")
 def table_rows(payload, table):
     order = ORDER_BY.get(table)
     if order is None:

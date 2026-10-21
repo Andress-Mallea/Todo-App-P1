@@ -14,10 +14,6 @@ fi
 
 echo "Aplicando migraciones..."
 flask db upgrade
-
-echo "Creando usuarios por defecto..."
-python seed.py
-
 echo "Poblando datos del restaurante..."
 python seed_restaurant.py
 
