@@ -10,3 +10,4 @@ PyJWT==2.15.1
 PyJWT[crypto]==2.15.1
 Authlib==1.6.12
 requests==2.32.5
+pytest
