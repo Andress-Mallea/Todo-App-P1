@@ -31,7 +31,16 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
 # Seguridad: las variables vienen del entorno, nunca del repositorio.
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()]
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+# Dominios autorizados para solicitudes POST protegidas por CSRF.
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "DJANGO_CSRF_TRUSTED_ORIGINS", ""
+    ).split(",")
+    if origin.strip()
+]
 # Application definition
 
 INSTALLED_APPS = [
