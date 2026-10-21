@@ -1,7 +1,7 @@
 from flask import Flask
 
 from .config import Config
-from .extensions import db, migrate
+from .extensions import db
 
 
 def create_app(config_class=Config):
@@ -13,7 +13,6 @@ def create_app(config_class=Config):
             raise RuntimeError(f"{key} is not set. Define it in .env or docker-compose.yml.")
 
     db.init_app(app)
-    migrate.init_app(app, db)
 
     from . import models  # noqa: F401
 

@@ -1,78 +1,68 @@
-
 services:
-  # 1. Base de Datos
   db:
     image: postgres:16
-    container_name: postgres_db
-    restart: always
+    restart: unless-stopped
     environment:
-      - POSTGRES_USER=${POSTGRES_USER:-app}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-123qwe}
-      - POSTGRES_DB=${POSTGRES_DB:-movies_database}
+      POSTGRES_USER: ${POSTGRES_USER:?Define POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Define POSTGRES_DB en .env}
     volumes:
       - datos_pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-movies_database}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  # 2. Tu aplicación Flask (API/Portafolio con JWT)
-  web:
+  migrate:
     build: .
-    container_name: flask_app
-    restart: always
-    environment:
-      - SECRET_KEY=${SECRET_KEY:-clave-secreta-de-desarrollo}
-      - AUTH0_DOMAIN=${AUTH0_DOMAIN:-TU-TENANT.us.auth0.com}
-      - AUTH0_AUDIENCE=${AUTH0_AUDIENCE:-todoapp-api}
-      - AUTH0_CLIENT_ID=${AUTH0_CLIENT_ID:-TU_CLIENT_ID}
-      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg2://app:123qwe@db:5432/movies_database}
-      - FLASK_APP=${FLASK_APP:-wsgi.py}
-    volumes:
-      - ./migrations:/site/migrations
-    command: ["gunicorn", "--preload", "--config", "gunicorn.conf.py", "--bind", "0.0.0.0:8000", "wsgi:app"]
-    healthcheck:
-      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 8000), 2)"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 10s
-    depends_on:
-      db:
-        condition: service_healthy
-
-  # 3. Tu panel administrador de Django
-  admin_django:
-    build: .
-    container_name: django_app
-    restart: always
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB:-movies_database}
-      - POSTGRES_USER=${POSTGRES_USER:-app}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-123qwe}
-      - DB_HOST=${DB_HOST:-db}
-      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
-      - DJANGO_DEBUG=${DJANGO_DEBUG:-True}
-      - DJANGO_SUPERUSER_USERNAME=${DJANGO_SUPERUSER_USERNAME:-admin}
-      - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL:-admin@ejemplo.com}
-      - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD:-supersecreto123}
-    entrypoint: ""
-    command: ["sh", "-c", "python manage.py migrate && python manage.py collectstatic --noinput && python manage.py createsuperuser --noinput || true && gunicorn --config gunicorn.conf.py --bind 0.0.0.0:8080 config.wsgi:application"]
+    entrypoint: ["sh", "-c"]
+    command: ["python manage.py migrate --noinput && python manage.py collectstatic --noinput"]
+    environment: &django_env
+      POSTGRES_DB: ${POSTGRES_DB:?Define POSTGRES_DB en .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Define POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      DB_HOST: db
+      POSTGRES_PORT: '5432'
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Define DJANGO_SECRET_KEY en .env}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
     volumes:
       - static_files:/site/staticfiles
     depends_on:
       db:
         condition: service_healthy
-      web:
-        condition: service_healthy
+    restart: 'no'
 
-  # 4. El servidor Nginx (Proxy Inverso y archivos estáticos)
+  admin_django:
+    build: .
+    entrypoint: []
+    command: ["gunicorn", "--config", "gunicorn.conf.py", "--bind", "0.0.0.0:8080", "config.wsgi:application"]
+    restart: unless-stopped
+    environment: *django_env
+    volumes:
+      - static_files:/site/staticfiles
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?Define SECRET_KEY en .env}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:?Define AUTH0_DOMAIN en .env}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:?Define AUTH0_AUDIENCE en .env}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:?Define AUTH0_CLIENT_ID en .env}
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:?}
+    command: ["gunicorn", "--config", "gunicorn.conf.py", "--bind", "0.0.0.0:8000", "wsgi:app"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   nginx:
     image: nginx:1.25.3
-    container_name: nginx_proxy
-    restart: always
+    restart: unless-stopped
     ports:
       - "80:80"
     volumes:
@@ -85,4 +75,3 @@ services:
 volumes:
   datos_pg:
   static_files:
-  

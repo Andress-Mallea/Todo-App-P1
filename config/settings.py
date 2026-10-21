@@ -19,7 +19,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Leemos la clave secreta y el modo debug desde el .env
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'clave-por-defecto-insegura')
+SECRET_KEY = os.environ['DJANGO_SECRET_KEY']
 
 # Truco de los apuntes para que "False" en texto no se evalúe como True en booleano
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
@@ -29,14 +29,8 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-(k+mbotu@us6fijm&qdr*wu97hq6$&hggi=t2x4drb2cylkbz('
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = ['*']
-
+# Seguridad: las variables vienen del entorno, nunca del repositorio.
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()]
 
 # Application definition
 
@@ -49,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'movies.apps.MoviesConfig', 
     'restaurant_admin.apps.RestaurantAdminConfig',
+    'carta.apps.CartaConfig',
 ]
 
 MIDDLEWARE = [
@@ -89,11 +84,11 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'movies_database'),
-        'USER': os.environ.get('DB_USER', 'app'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', '123qwe'),
+        'NAME': os.environ['POSTGRES_DB'],
+        'USER': os.environ['POSTGRES_USER'],
+        'PASSWORD': os.environ['POSTGRES_PASSWORD'],
         'HOST': os.environ.get('DB_HOST', 'db'),  # Debe apuntar a 'db' por defecto
-        'PORT': os.environ.get('DB_PORT', '5432'),
+        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
     }
 }
 
