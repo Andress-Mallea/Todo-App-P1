@@ -16,8 +16,16 @@ services:
 
   migrate:
     build: .
-    entrypoint: ["sh", "-c"]
-    command: ["python manage.py migrate --noinput && python manage.py collectstatic --noinput"]
+    entrypoint: []
+    command:  
+      - sh
+      - -ec
+      - |
+        echo "=== INICIANDO MIGRACIONES DJANGO ==="
+        python manage.py migrate --noinput
+        python manage.py collectstatic --noinput
+        echo "=== MIGRACIONES COMPLETADAS ==="
+        (python manage.py shell -c "from django.contrib.auth import get_user_model; import os; U=get_user_model(); name=os.environ['DJANGO_SUPERUSER_USERNAME']; user,created=U.objects.get_or_create(username=name, defaults={'email':os.environ['DJANGO_SUPERUSER_EMAIL'],'is_staff':True,'is_superuser':True}); user.is_staff=True; user.is_superuser=True; user.set_password(os.environ['DJANGO_SUPERUSER_PASSWORD']); user.save()" )
     environment: &django_env
       POSTGRES_DB: ${POSTGRES_DB:?Define POSTGRES_DB en .env}
       POSTGRES_USER: ${POSTGRES_USER:?Define POSTGRES_USER en .env}
@@ -27,6 +35,9 @@ services:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Define DJANGO_SECRET_KEY en .env}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DJANGO_SUPERUSER_USERNAME: ${DJANGO_SUPERUSER_USERNAME:?Define DJANGO_SUPERUSER_USERNAME}
+      DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL:?Define DJANGO_SUPERUSER_EMAIL}
+      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:?Define DJANGO_SUPERUSER_PASSWORD}
     volumes:
       - static_files:/site/staticfiles
     depends_on:

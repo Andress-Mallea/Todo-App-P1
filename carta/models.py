@@ -19,6 +19,7 @@ class Plato(models.Model):
     descripcion = models.TextField(blank=True)
     precio = models.DecimalField(max_digits=10, decimal_places=2)
     disponible = models.BooleanField(default=True)
+    categoria = models.ForeignKey("Categoria", on_delete=models.SET_NULL, null=True, blank=True, related_name="platos")
 
     class Meta:
         constraints = [
@@ -98,3 +99,89 @@ class ItemPedido(models.Model):
 
     def __str__(self):
         return f"{self.cantidad} x {self.plato_id}"
+
+
+# Perfiles comerciales: Auth0 conserva las credenciales y los permisos.
+class Usuario(models.Model):
+    auth0_sub = models.CharField(max_length=255, unique=True)
+    nombre = models.CharField(max_length=120, blank=True)
+    apellido = models.CharField(max_length=120, blank=True)
+    email = models.EmailField(blank=True)
+    telefono = models.CharField(max_length=30, blank=True)
+
+    def __str__(self):
+        return self.nombre or self.email or self.auth0_sub
+
+
+class Cliente(models.Model):
+    usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name="perfil_cliente")
+    direccion = models.CharField(max_length=255, blank=True)
+    fecha_registro = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"Cliente: {self.usuario}"
+
+
+class Empleado(models.Model):
+    usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name="perfil_empleado")
+    restaurante = models.ForeignKey(Restaurante, on_delete=models.PROTECT, related_name="empleados")
+    cargo = models.CharField(max_length=100)
+    fecha_contratacion = models.DateField(default=timezone.localdate)
+    activo = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.usuario} - {self.cargo}"
+
+
+class Categoria(models.Model):
+    nombre = models.CharField(max_length=100)
+    descripcion = models.TextField(blank=True)
+
+    def __str__(self):
+        return self.nombre
+
+
+class Mesa(models.Model):
+    restaurante = models.ForeignKey(Restaurante, on_delete=models.PROTECT, related_name="mesas")
+    numero = models.PositiveIntegerField()
+    capacidad = models.PositiveIntegerField()
+    activa = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["restaurante", "numero"], name="carta_mesa_unica_por_rest"),
+            models.CheckConstraint(check=Q(capacidad__gt=0), name="carta_mesa_capacidad_positiva"),
+            models.CheckConstraint(check=Q(numero__gt=0), name="carta_mesa_numero_positivo"),
+        ]
+
+    def __str__(self):
+        return f"Mesa {self.numero} - {self.restaurante}"
+
+
+class Promocion(models.Model):
+    restaurante = models.ForeignKey(Restaurante, on_delete=models.PROTECT, related_name="promociones")
+    nombre = models.CharField(max_length=150)
+    descripcion = models.TextField(blank=True)
+    porcentaje_descuento = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    activa = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(check=Q(porcentaje_descuento__gte=0) & Q(porcentaje_descuento__lte=100), name="carta_promo_descuento_rango"),
+        ]
+
+    def __str__(self):
+        return self.nombre
+
+
+class PromocionPlato(models.Model):
+    promocion = models.ForeignKey(Promocion, on_delete=models.CASCADE, related_name="platos_promocion")
+    plato = models.ForeignKey(Plato, on_delete=models.PROTECT, related_name="promociones_plato")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["promocion", "plato"], name="carta_promo_plato_unico"),
+        ]
+
+    def __str__(self):
+        return f"{self.promocion} - {self.plato}"
