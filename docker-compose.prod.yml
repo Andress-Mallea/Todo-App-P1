@@ -1,0 +1,23 @@
+# Se combina con docker-compose.yml en EC2.
+# El .env de PRODUCCIÓN debe contener NGINX_CONFIG=prod.conf
+# y COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+services:
+  web:
+    environment:
+      SESSION_COOKIE_SECURE: "1"
+      BEHIND_PROXY: "1"
+  migrate:
+    environment:
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: "admindragonpai.chickenkiller.com"
+      DJANGO_CSRF_TRUSTED_ORIGINS: "https://admindragonpai.chickenkiller.com"
+  admin_django:
+    environment:
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: "admindragonpai.chickenkiller.com"
+      DJANGO_CSRF_TRUSTED_ORIGINS: "https://admindragonpai.chickenkiller.com"
+  nginx:
+    ports:
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
