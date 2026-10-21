@@ -1,4 +1,5 @@
-from flask import Flask
+from flask import Flask, session
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
 from .extensions import db
@@ -7,38 +8,33 @@ from .extensions import db
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
-
-    for key in ("AUTH0_DOMAIN", "AUTH0_AUDIENCE", "AUTH0_CLIENT_ID"):
+    for key in ("AUTH0_DOMAIN", "AUTH0_AUDIENCE", "AUTH0_CLIENT_ID", "AUTH0_CLIENT_SECRET"):
         if not app.config[key]:
-            raise RuntimeError(f"{key} is not set. Define it in .env or docker-compose.yml.")
+            raise RuntimeError(f"Falta {key} en el entorno del contenedor Flask")
+
+    if app.config.get("BEHIND_PROXY"):
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     db.init_app(app)
-
     from . import models  # noqa: F401
-
-    from .api import bp as api_bp
     from .auth import AuthError, jwks_client
     from .auth.handlers import handle_auth_error
+    from .auth.oauth import init_auth0
+    from .auth.routes import bp as auth_bp
+    from .auth.decorators import current_user
+    from .api import bp as api_bp
     from .restaurant import bp as restaurant_bp
-    from .routes import bp as todos_bp
-
-    # Un cliente de claves por app, para que su caché dure lo que el proceso
-    app.extensions["auth0_jwks"] = jwks_client(app.config["AUTH0_DOMAIN"])
-
+    from .routes import bp as root_bp
     from .carta_routes import bp as carta_bp
-    app.register_blueprint(carta_bp)
-    app.register_blueprint(todos_bp)
-    app.register_blueprint(api_bp)
-    app.register_blueprint(restaurant_bp)
+
+    init_auth0(app)
+    app.extensions["auth0_jwks"] = jwks_client(app.config["AUTH0_DOMAIN"])
+    for bp in (auth_bp, root_bp, carta_bp, api_bp, restaurant_bp):
+        app.register_blueprint(bp)
     app.register_error_handler(AuthError, handle_auth_error)
 
     @app.context_processor
-    def inject_auth0():
-        # Estos tres datos no son secretos: el navegador los necesita para armar el login
-        return {"auth0_config": {
-            "domain": app.config["AUTH0_DOMAIN"],
-            "clientId": app.config["AUTH0_CLIENT_ID"],
-            "audience": app.config["AUTH0_AUDIENCE"],
-        }}
+    def inject_user():
+        return {"current_user": current_user()}
 
     return app

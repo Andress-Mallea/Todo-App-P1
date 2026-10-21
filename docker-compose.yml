@@ -66,6 +66,9 @@ services:
       AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:?Define AUTH0_AUDIENCE en .env}
       AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:?Define AUTH0_CLIENT_ID en .env}
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:?}
+      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET:?Define AUTH0_CLIENT_SECRET en .env}
+      SESSION_COOKIE_SECURE: "0"
+      BEHIND_PROXY: "1"
     command: ["gunicorn", "--config", "gunicorn.conf.py", "--bind", "0.0.0.0:8000", "wsgi:app"]
     depends_on:
       migrate:

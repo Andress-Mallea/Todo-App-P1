@@ -31,13 +31,47 @@ def check_permissions(permission, payload):
     return True
 
 
+def get_token_from_session():
+    from flask import session
+    token = session.get("access_token")
+    if not token:
+        raise AuthError({"code": "not_signed_in", "description": "Inicia sesión para continuar."}, 401)
+    return token
+
+
 def requires_auth(permission=""):
-    """Uso: @requires_auth('delete:todos'). Filtros: token (401), válido (401), permiso (403)."""
-    def requires_auth_decorator(f):
-        @wraps(f)
-        def wrapper(*args, **kwargs):
+    """Para las páginas Flask: 401 sin sesión, 403 sin permiso."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapped(*args, **kwargs):
+            payload = verify_decode_jwt(get_token_from_session())
+            check_permissions(permission, payload)
+            return fn(payload, *args, **kwargs)
+        return wrapped
+    return decorator
+
+
+def requires_bearer_auth(permission=""):
+    """Se conserva solo para las rutas JSON antiguas; no es el login de La Carta."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapped(*args, **kwargs):
             payload = verify_decode_jwt(get_token_auth_header())
             check_permissions(permission, payload)
-            return f(payload, *args, **kwargs)
-        return wrapper
-    return requires_auth_decorator
+            return fn(payload, *args, **kwargs)
+        return wrapped
+    return decorator
+
+
+def current_user():
+    from flask import session
+    token = session.get("access_token")
+    if not token:
+        return None
+    try:
+        payload = verify_decode_jwt(token)
+    except AuthError:
+        return None
+    profile = session.get("user", {})
+    return {"name": profile.get("name") or profile.get("email") or payload["sub"],
+            "sub": payload["sub"], "permissions": payload.get("permissions", [])}

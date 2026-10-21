@@ -1,33 +1,14 @@
 """R1: carta pública, pedidos atómicos y transiciones de estado."""
 from decimal import Decimal
-from functools import wraps
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from sqlalchemy.exc import SQLAlchemyError
 
-from .auth import AuthError, verify_decode_jwt
+from .auth import requires_auth
 from .extensions import db
 from .models import ItemPedido, Pedido, Plato, Restaurante
 
 bp = Blueprint("carta", __name__)
-
-
-def permiso_requerido(permiso):
-    """Autorización real en el servidor: JWT RS256 de la sesión Flask."""
-    def decorar(func):
-        @wraps(func)
-        def protegido(*args, **kwargs):
-            token = session.get("access_token")
-            if not token:
-                raise AuthError({"code": "not_signed_in", "description": "Inicia sesión para continuar."}, 401)
-            payload = verify_decode_jwt(token)
-            if "permissions" not in payload:
-                raise AuthError({"code": "invalid_claims", "description": "El token no incluye permisos."}, 400)
-            if permiso not in payload["permissions"]:
-                raise AuthError({"code": "forbidden", "description": "Acceso denegado."}, 403)
-            return func(payload, *args, **kwargs)
-        return protegido
-    return decorar
 
 
 @bp.get("/restaurantes")
@@ -43,7 +24,7 @@ def detalle_restaurante(restaurante_id):
 
 
 @bp.post("/restaurantes/<int:restaurante_id>/pedidos")
-@permiso_requerido("create:pedidos")
+@requires_auth("create:pedidos")
 def crear_pedido(payload, restaurante_id):
     restaurante = db.get_or_404(Restaurante, restaurante_id)
     # Solo se reciben ids de platos y cantidades; NUNCA se aceptan precios ni totales.
@@ -99,7 +80,7 @@ def crear_pedido(payload, restaurante_id):
 
 
 @bp.get("/pedidos")
-@permiso_requerido("read:mis-pedidos")
+@requires_auth("read:mis-pedidos")
 def mis_pedidos(payload):
     pedidos = Pedido.query.filter_by(cliente=payload["sub"]).order_by(Pedido.fecha.desc()).all()
     return render_template("carta/mis_pedidos.html", pedidos=pedidos)
@@ -114,14 +95,14 @@ def pedido_del_cliente(pedido_id, sub):
 
 
 @bp.get("/pedidos/<int:pedido_id>")
-@permiso_requerido("read:mis-pedidos")
+@requires_auth("read:mis-pedidos")
 def ver_pedido(payload, pedido_id):
     pedido = pedido_del_cliente(pedido_id, payload["sub"])
     return render_template("carta/pedido.html", pedido=pedido)
 
 
 @bp.post("/pedidos/<int:pedido_id>/cancelar")
-@permiso_requerido("read:mis-pedidos")
+@requires_auth("read:mis-pedidos")
 def cancelar(payload, pedido_id):
     pedido_del_cliente(pedido_id, payload["sub"])
     # Actualización condicional: solo cancela si todavía está pendiente.
@@ -140,7 +121,7 @@ def cancelar(payload, pedido_id):
 
 
 @bp.get("/cocina")
-@permiso_requerido("read:pedidos")
+@requires_auth("read:pedidos")
 def cocina(payload):
     pedidos = Pedido.query.filter(Pedido.estado.in_([
         Pedido.PENDIENTE, Pedido.EN_PREPARACION, Pedido.LISTO
@@ -157,7 +138,7 @@ SIGUIENTE = {
 
 
 @bp.post("/cocina/pedidos/<int:pedido_id>/avanzar")
-@permiso_requerido("update:pedidos")
+@requires_auth("update:pedidos")
 def avanzar(payload, pedido_id):
     pedido = db.get_or_404(Pedido, pedido_id)
     anterior = pedido.estado

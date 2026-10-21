@@ -1,0 +1,4 @@
+{% extends 'base.html' %}
+{% block title %}Acceso denegado{% endblock %}
+{% block content %}<h2>Error {{ status }}</h2><p>{{ message }}</p>
+<a href="{{ url_for('carta.restaurantes') }}">Volver a la carta</a>{% endblock %}
