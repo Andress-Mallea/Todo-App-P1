@@ -9,13 +9,13 @@ services:
   migrate:
     environment:
       DJANGO_DEBUG: "False"
-      DJANGO_ALLOWED_HOSTS: "admin.54.84.158.85.sslip.io"
-      DJANGO_CSRF_TRUSTED_ORIGINS: "https://admin.54.84.158.85.sslip.io"
+      DJANGO_ALLOWED_HOSTS: "admin.${PUBLIC_IP}.sslip.io"
+      DJANGO_CSRF_TRUSTED_ORIGINS: "https://admin.${PUBLIC_IP}.sslip.io"
   admin_django:
     environment:
       DJANGO_DEBUG: "False"
-      DJANGO_ALLOWED_HOSTS: "admin.54.84.158.85.sslip.io"
-      DJANGO_CSRF_TRUSTED_ORIGINS: "https://admin.54.84.158.85.sslip.io"
+      DJANGO_ALLOWED_HOSTS: "admin.${PUBLIC_IP}.sslip.io"
+      DJANGO_CSRF_TRUSTED_ORIGINS: "https://admin.${PUBLIC_IP}.sslip.io"
   nginx:
     ports:
       - "443:443"
