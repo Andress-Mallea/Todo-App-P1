@@ -122,15 +122,33 @@ class Cliente(models.Model):
         return f"Cliente: {self.usuario}"
 
 
+
 class Empleado(models.Model):
-    usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name="perfil_empleado")
-    restaurante = models.ForeignKey(Restaurante, on_delete=models.PROTECT, related_name="empleados")
+    usuario = models.OneToOneField(
+        Usuario,
+        on_delete=models.CASCADE,
+        related_name="perfil_empleado"
+    )
+
+    restaurante = models.ForeignKey(
+        Restaurante,
+        on_delete=models.PROTECT,
+        related_name="empleados",
+        null=True,
+        blank=True
+    )
+
     cargo = models.CharField(max_length=100)
-    fecha_contratacion = models.DateField(default=timezone.localdate)
-    activo = models.BooleanField(default=True)
+
+    fecha_contratacion = models.DateField(
+        default=timezone.localdate
+    )
+
+    activo = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.usuario} - {self.cargo}"
+
 
 
 class Categoria(models.Model):

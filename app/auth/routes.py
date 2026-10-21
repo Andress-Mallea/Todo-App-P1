@@ -5,7 +5,7 @@ from flask import Blueprint, current_app, flash, redirect, request, session, url
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.extensions import db
-from app.models import Cliente, Usuario
+from app.models import Cliente, Empleado, Usuario
 from .oauth import auth0
 from .tokens import verify_decode_jwt
 from .errors import AuthError
@@ -49,7 +49,13 @@ def callback():
     profile = token.get("userinfo") or {}
     auth0_sub = payload["sub"]
     permisos = payload.get("permissions") or []
-    es_cliente = "create:pedidos" in permisos and "read:mis-pedidos" in permisos
+    # La aplicación Auth0 asigna permisos, no relaciones comerciales.
+    # Damos prioridad al personal, incluso si el token trae permisos de cliente.
+    permisos = set(permisos)
+    es_admin = bool(permisos & {"write:carta", "delete:carta"})
+    es_cocina = bool(permisos & {"update:pedidos", "read:pedidos"})
+    es_personal = es_admin or es_cocina
+    es_cliente = not es_personal and {"create:pedidos", "read:mis-pedidos"}.issubset(permisos)
 
     nombre_completo = (profile.get("name") or "").strip()
     nombre = (profile.get("given_name") or nombre_completo).strip()[:120]
@@ -71,8 +77,20 @@ def callback():
             if email:
                 usuario.email = email
 
-        if es_cliente and Cliente.query.filter_by(usuario_id=usuario.id).first() is None:
-            db.session.add(Cliente(usuario_id=usuario.id, direccion=""))
+        empleado_existente = Empleado.query.filter_by(usuario_id=usuario.id).first()
+        if es_personal:
+            if empleado_existente is None:
+                db.session.add(Empleado(
+                    usuario_id=usuario.id,
+                    restaurante_id=None,
+                    cargo="Administrador" if es_admin else "Cocina",
+                    activo=False,
+                ))
+            # No modificar la asignación de empleados existentes.
+            # No borrar perfiles Cliente antiguos: podrían tener datos relacionados.
+        elif es_cliente and empleado_existente is None:
+            if Cliente.query.filter_by(usuario_id=usuario.id).first() is None:
+                db.session.add(Cliente(usuario_id=usuario.id, direccion=""))
 
         db.session.commit()
     except SQLAlchemyError:

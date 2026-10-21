@@ -2,7 +2,7 @@
 
 No ejecutar db.create_all() ni Flask-Migrate sobre estas tablas en producción.
 """
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from .extensions import db
 
@@ -120,10 +120,10 @@ class Empleado(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     usuario_id = db.Column(db.Integer, db.ForeignKey("carta_usuario.id"), nullable=False, unique=True)
-    restaurante_id = db.Column(db.Integer, db.ForeignKey("carta_restaurante.id"), nullable=False)
+    restaurante_id = db.Column(db.Integer, db.ForeignKey("carta_restaurante.id"), nullable=True)
     cargo = db.Column(db.String(100), nullable=False)
-    fecha_contratacion = db.Column(db.Date, nullable=False)
-    activo = db.Column(db.Boolean, nullable=False, default=True)
+    fecha_contratacion = db.Column(db.Date, nullable=False, default=date.today)
+    activo = db.Column(db.Boolean, nullable=False, default=False)
 
     usuario = db.relationship("Usuario", back_populates="perfil_empleado")
     restaurante = db.relationship("Restaurante")
