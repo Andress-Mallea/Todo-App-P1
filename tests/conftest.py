@@ -3,7 +3,8 @@ import pytest
 from app import create_app
 from app.config import TestConfig
 from app.extensions import db
-from app.models import Restaurante, Plato
+from datetime import date
+from app.models import Restaurante, Plato, Usuario, Empleado
 
 CLIENTE = ["create:pedidos", "read:mis-pedidos"]
 COCINA = ["read:pedidos", "update:pedidos"]
@@ -36,6 +37,18 @@ def app(monkeypatch):
         no_disponible = Plato(restaurante_id=restaurante.id, nombre="Agotado",
                              descripcion="", precio="11.00", disponible=False)
         db.session.add_all([plato, no_disponible])
+        # El cocinero simulado debe existir también como empleado activo.
+        # La asociación se hace con el mismo `sub` del token de prueba.
+        usuario_cocina = Usuario(auth0_sub="auth0|cocinero", nombre="Cocinero R6")
+        db.session.add(usuario_cocina)
+        db.session.flush()
+        db.session.add(Empleado(
+            usuario_id=usuario_cocina.id,
+            restaurante_id=restaurante.id,
+            cargo="Cocinero",
+            fecha_contratacion=date.today(),
+            activo=True,
+        ))
         db.session.commit()
         yield app
         db.session.remove()

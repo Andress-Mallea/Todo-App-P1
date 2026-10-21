@@ -2,7 +2,7 @@
 from decimal import Decimal
 
 from app.extensions import db
-from app.models import ItemPedido, Pedido, Plato
+from app.models import ItemPedido, Pedido, Plato, Restaurante
 
 
 def enviar_pedido(client, plato_id=1, cantidad=2, **extra):
@@ -81,3 +81,35 @@ def test_06_cocina_no_retrocede_listo_a_pendiente(app, client, entrar):
     with app.app_context():
         assert db.session.get(Pedido, pedido_id).estado == Pedido.ENTREGADO
         assert db.session.get(Pedido, pedido_id).estado != Pedido.PENDIENTE
+
+
+def test_07_cocina_no_ve_ni_avanza_pedido_ajeno(app, client, entrar):
+    # Un pedido en el restaurante 2 no pertenece al empleado del restaurante 1.
+    with app.app_context():
+        otro = Restaurante(nombre="Otro restaurante", descripcion="")
+        db.session.add(otro)
+        db.session.flush()
+        plato_ajeno = Plato(restaurante_id=otro.id, nombre="Plato ajeno",
+                            descripcion="", precio=Decimal("15.00"), disponible=True)
+        db.session.add(plato_ajeno)
+        db.session.flush()
+        pedido_ajeno = Pedido(cliente="auth0|cliente_b", restaurante_id=otro.id,
+                              estado=Pedido.PENDIENTE, total=Decimal("15.00"))
+        db.session.add(pedido_ajeno)
+        db.session.flush()
+        db.session.add(ItemPedido(pedido_id=pedido_ajeno.id,
+                                  plato_id=plato_ajeno.id, cantidad=1,
+                                  precio_unitario=Decimal("15.00")))
+        db.session.commit()
+        pedido_ajeno_id = pedido_ajeno.id
+
+    entrar("cocina")
+    respuesta_lista = client.get("/cocina")
+    assert respuesta_lista.status_code == 200
+    # Aseguramos que el pedido ajeno no figure en la cola de cocina.
+    assert f"/cocina/pedidos/{pedido_ajeno_id}/avanzar" not in respuesta_lista.get_data(as_text=True)
+
+    respuesta_avanzar = client.post(f"/cocina/pedidos/{pedido_ajeno_id}/avanzar")
+    assert respuesta_avanzar.status_code == 404
+    with app.app_context():
+        assert db.session.get(Pedido, pedido_ajeno_id).estado == Pedido.PENDIENTE

@@ -98,3 +98,44 @@ class ItemPedido(db.Model):
 
     pedido = db.relationship("Pedido", back_populates="items")
     plato = db.relationship("Plato", back_populates="items_pedido")
+
+
+# Perfiles creados mediante las migraciones de Django (carta.0002).
+# Auth0 gestiona identidad y permisos; estas tablas solo vinculan personas y restaurantes.
+class Usuario(db.Model):
+    __tablename__ = "carta_usuario"
+
+    id = db.Column(db.Integer, primary_key=True)
+    auth0_sub = db.Column(db.String(255), unique=True, nullable=False)
+    nombre = db.Column(db.String(120), nullable=False, default="")
+    apellido = db.Column(db.String(120), nullable=False, default="")
+    email = db.Column(db.String(254), nullable=False, default="")
+    telefono = db.Column(db.String(30), nullable=False, default="")
+
+    perfil_empleado = db.relationship("Empleado", back_populates="usuario", uselist=False)
+
+
+class Empleado(db.Model):
+    __tablename__ = "carta_empleado"
+
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey("carta_usuario.id"), nullable=False, unique=True)
+    restaurante_id = db.Column(db.Integer, db.ForeignKey("carta_restaurante.id"), nullable=False)
+    cargo = db.Column(db.String(100), nullable=False)
+    fecha_contratacion = db.Column(db.Date, nullable=False)
+    activo = db.Column(db.Boolean, nullable=False, default=True)
+
+    usuario = db.relationship("Usuario", back_populates="perfil_empleado")
+    restaurante = db.relationship("Restaurante")
+
+
+class Cliente(db.Model):
+    """Tabla creada y migrada por Django, no por Flask."""
+    __tablename__ = "carta_cliente"
+
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey("carta_usuario.id"), nullable=False, unique=True)
+    direccion = db.Column(db.String(255), nullable=False, default="")
+    fecha_registro = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    usuario = db.relationship("Usuario", backref=db.backref("perfil_cliente", uselist=False))

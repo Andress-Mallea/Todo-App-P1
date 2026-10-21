@@ -6,7 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from .auth import requires_auth
 from .extensions import db
-from .models import ItemPedido, Pedido, Plato, Restaurante
+from .models import Empleado, ItemPedido, Pedido, Plato, Restaurante, Usuario
 
 bp = Blueprint("carta", __name__)
 
@@ -120,14 +120,35 @@ def cancelar(payload, pedido_id):
     return redirect(url_for("carta.ver_pedido", pedido_id=pedido_id), code=303)
 
 
+def restaurante_del_cocinero(payload):
+    """Usa el sub validado del JWT, nunca IDs o roles enviados en formularios.
+
+    Un cocinero sin perfil de empleado activo y asignado no puede operar.
+    """
+    empleado = (
+        Empleado.query.join(Usuario, Empleado.usuario_id == Usuario.id)
+        .filter(Usuario.auth0_sub == payload["sub"], Empleado.activo.is_(True))
+        .first()
+    )
+    if empleado is None:
+        abort(403, "No tienes un restaurante de cocina asignado o tu perfil está inactivo.")
+    return empleado.restaurante_id
+
+
 @bp.get("/cocina")
 @requires_auth("read:pedidos")
 def cocina(payload):
-    pedidos = Pedido.query.filter(Pedido.estado.in_([
+    puede_avanzar = "update:pedidos" in payload["permissions"]
+    pedidos_query = Pedido.query.filter(Pedido.estado.in_([
         Pedido.PENDIENTE, Pedido.EN_PREPARACION, Pedido.LISTO
-    ])).order_by(Pedido.fecha).all()
+    ]))
+    if puede_avanzar:
+        # Cocina tiene update:pedidos, por lo que necesita asociación activa.
+        pedidos_query = pedidos_query.filter_by(restaurante_id=restaurante_del_cocinero(payload))
+    # Admin (solo read:pedidos) conserva la vista general requerida por el examen.
+    pedidos = pedidos_query.order_by(Pedido.fecha).all()
     return render_template("carta/cocina.html", pedidos=pedidos,
-                           puede_avanzar="update:pedidos" in payload["permissions"])
+                           puede_avanzar=puede_avanzar)
 
 
 SIGUIENTE = {
@@ -140,15 +161,18 @@ SIGUIENTE = {
 @bp.post("/cocina/pedidos/<int:pedido_id>/avanzar")
 @requires_auth("update:pedidos")
 def avanzar(payload, pedido_id):
-    pedido = db.get_or_404(Pedido, pedido_id)
+    restaurante_id = restaurante_del_cocinero(payload)
+    # El filtro por restaurante es obligatorio en la consulta Y en el UPDATE.
+    # Un ID de otro restaurante (o inexistente) responde 404.
+    pedido = Pedido.query.filter_by(id=pedido_id, restaurante_id=restaurante_id).first_or_404()
     anterior = pedido.estado
     siguiente = SIGUIENTE.get(anterior)
     if siguiente is None:
         abort(400, "El pedido no admite más avances.")
     try:
-        # Evita que dos cocineros avancen dos veces un mismo estado a la vez.
-        modificados = Pedido.query.filter_by(id=pedido_id, estado=anterior).update(
-            {Pedido.estado: siguiente}, synchronize_session=False)
+        modificados = Pedido.query.filter_by(
+            id=pedido_id, restaurante_id=restaurante_id, estado=anterior
+        ).update({Pedido.estado: siguiente}, synchronize_session=False)
         if modificados != 1:
             db.session.rollback()
             abort(409, "Otro usuario cambió el estado; actualiza la página.")
