@@ -1,13 +1,14 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}To do App{% endblock %}</title>
+<title>{% block title %}La Carta 2.0{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 <style>body{font-family:Arial,sans-serif;max-width:960px;margin:2rem auto;padding:0 1rem}nav{display:flex;gap:1rem;align-items:center;flex-wrap:wrap}main{margin-top:2rem}input[type=number]{max-width:5rem}.error{color:#b91c1c}</style>
-</head><body><header><h1><a href="{{ url_for('carta.restaurantes') }}">Examne</a></h1>
+</head><body><header><h1><a href="{{ url_for('carta.restaurantes') }}">La Carta 2.0</a></h1>
 <nav><a href="{{ url_for('carta.restaurantes') }}">Restaurantes</a>
 {% if current_user %}
 <span>{{ current_user.name }}</span>
 {% if 'read:mis-pedidos' in current_user.permissions %}<a href="{{ url_for('carta.mis_pedidos') }}">Mis pedidos</a>{% endif %}
+{% if 'write:carta' in current_user.permissions %}<a href="{{ url_for('carta_admin.indice') }}">Administrar carta</a>{% endif %}
 {% if 'read:pedidos' in current_user.permissions %}<a href="{{ url_for('carta.cocina') }}">Cocina</a>{% endif %}
 <form method="post" action="{{ url_for('auth.logout') }}"><button type="submit">Salir</button></form>
 {% else %}<a href="{{ url_for('auth.login') }}">Iniciar sesión</a>{% endif %}</nav></header>

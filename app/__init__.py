@@ -26,10 +26,11 @@ def create_app(config_class=Config):
     from .restaurant import bp as restaurant_bp
     from .routes import bp as root_bp
     from .carta_routes import bp as carta_bp
+    from .carta_admin_routes import bp as carta_admin_bp
 
     init_auth0(app)
     app.extensions["auth0_jwks"] = jwks_client(app.config["AUTH0_DOMAIN"])
-    for bp in (auth_bp, root_bp, carta_bp, api_bp, restaurant_bp):
+    for bp in (auth_bp, root_bp, carta_bp, carta_admin_bp, api_bp, restaurant_bp):
         app.register_blueprint(bp)
     app.register_error_handler(AuthError, handle_auth_error)
 

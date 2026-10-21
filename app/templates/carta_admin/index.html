@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Administrar la carta{% endblock %}
+{% block content %}
+<h2>Administrar la carta</h2>
+<p>Los cambios afectan el menú público. Los pedidos históricos conservan sus precios.</p>
+<p><a href="{{ url_for('carta_admin.nuevo_restaurante') }}">Crear restaurante</a> | <a href="{{ url_for('carta_admin.nuevo_plato') }}">Crear plato</a></p>
+<h3>Restaurantes</h3>
+<table border="1" cellpadding="7"><thead><tr><th>Nombre</th><th>Acciones</th></tr></thead><tbody>
+{% for r in restaurantes %}<tr><td>{{ r.nombre }}</td><td><a href="{{ url_for('carta_admin.editar_restaurante', restaurante_id=r.id) }}">Editar</a>
+{% if puede_eliminar %}<form method="post" action="{{ url_for('carta_admin.eliminar_restaurante', restaurante_id=r.id) }}" style="display:inline" onsubmit="return confirm('¿Eliminar restaurante?');"><button type="submit">Eliminar</button></form>{% endif %}
+</td></tr>{% else %}<tr><td colspan="2">Sin restaurantes</td></tr>{% endfor %}</tbody></table>
+<h3>Platos</h3>
+<table border="1" cellpadding="7"><thead><tr><th>Plato</th><th>Restaurante</th><th>Precio</th><th>Disponible</th><th>Acciones</th></tr></thead><tbody>
+{% for p in platos %}<tr><td>{{ p.nombre }}</td><td>{{ p.restaurante.nombre }}</td><td>{{ p.precio }}</td><td>{{ 'Sí' if p.disponible else 'No' }}</td><td><a href="{{ url_for('carta_admin.editar_plato', plato_id=p.id) }}">Editar</a>
+{% if puede_eliminar %}<form method="post" action="{{ url_for('carta_admin.eliminar_plato', plato_id=p.id) }}" style="display:inline" onsubmit="return confirm('¿Eliminar plato?');"><button type="submit">Eliminar</button></form>{% endif %}
+</td></tr>{% else %}<tr><td colspan="5">Sin platos</td></tr>{% endfor %}</tbody></table>
+{% endblock %}

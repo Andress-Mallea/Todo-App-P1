@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block title %}Restaurante{% endblock %}
+{% block content %}
+<h2>{{ 'Editar' if restaurante else 'Crear' }} restaurante</h2>
+<form method="post"><p><label>Nombre <input name="nombre" maxlength="150" required value="{{ restaurante.nombre if restaurante else '' }}"></label></p>
+<p><label>Descripción <textarea name="descripcion">{{ restaurante.descripcion if restaurante else '' }}</textarea></label></p>
+<button type="submit">Guardar</button> <a href="{{ url_for('carta_admin.indice') }}">Volver</a></form>
+{% endblock %}

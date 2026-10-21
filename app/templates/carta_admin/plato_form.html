@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Plato{% endblock %}
+{% block content %}
+<h2>{{ 'Editar' if plato else 'Crear' }} plato</h2>
+<form method="post">
+<p><label>Restaurante <select name="restaurante_id" required>{% for r in restaurantes %}<option value="{{ r.id }}" {% if plato and plato.restaurante_id == r.id %}selected{% endif %}>{{ r.nombre }}</option>{% endfor %}</select></label></p>
+<p><label>Nombre <input name="nombre" maxlength="150" required value="{{ plato.nombre if plato else '' }}"></label></p>
+<p><label>Descripción <textarea name="descripcion">{{ plato.descripcion if plato else '' }}</textarea></label></p>
+<p><label>Precio <input type="number" name="precio" min="0" max="99999999.99" step="0.01" required value="{{ plato.precio if plato else '' }}"></label></p>
+<p><label><input type="checkbox" name="disponible" {% if not plato or plato.disponible %}checked{% endif %}> Disponible</label></p>
+<button type="submit">Guardar</button> <a href="{{ url_for('carta_admin.indice') }}">Volver</a>
+</form>
+{% endblock %}
