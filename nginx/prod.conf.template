@@ -12,7 +12,6 @@ server {
     server_name carta.${PUBLIC_IP}.sslip.io admin.${PUBLIC_IP}.sslip.io;
     return 301 https://$host$request_uri;
 }
-#Hola
 server {
     listen 443 ssl;
     server_name carta.${PUBLIC_IP}.sslip.io;

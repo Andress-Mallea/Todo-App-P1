@@ -1,6 +1,5 @@
-# Se combina con docker-compose.yml en EC2.
-# El .env de PRODUCCIÓN debe contener NGINX_CONFIG=prod.conf
-# y COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+# Overlay de produccion. Usar junto con docker-compose.yml.
+# PUBLIC_IP usa guiones, por ejemplo: 54-226-52-186.
 services:
   web:
     environment:
@@ -9,16 +8,20 @@ services:
   migrate:
     environment:
       DJANGO_DEBUG: "False"
-      DJANGO_ALLOWED_HOSTS: "admin.${PUBLIC_IP}.sslip.io"
-      DJANGO_CSRF_TRUSTED_ORIGINS: "https://admin.${PUBLIC_IP}.sslip.io"
+      DJANGO_ALLOWED_HOSTS: "admin.${PUBLIC_IP:?Define PUBLIC_IP en .env}.sslip.io"
+      DJANGO_CSRF_TRUSTED_ORIGINS: "https://admin.${PUBLIC_IP:?Define PUBLIC_IP en .env}.sslip.io"
   admin_django:
     environment:
       DJANGO_DEBUG: "False"
-      DJANGO_ALLOWED_HOSTS: "admin.${PUBLIC_IP}.sslip.io"
-      DJANGO_CSRF_TRUSTED_ORIGINS: "https://admin.${PUBLIC_IP}.sslip.io"
+      DJANGO_ALLOWED_HOSTS: "admin.${PUBLIC_IP:?Define PUBLIC_IP en .env}.sslip.io"
+      DJANGO_CSRF_TRUSTED_ORIGINS: "https://admin.${PUBLIC_IP:?Define PUBLIC_IP en .env}.sslip.io"
   nginx:
+    environment:
+      PUBLIC_IP: ${PUBLIC_IP:?Define PUBLIC_IP en .env}
+      NGINX_ENVSUBST_FILTER: "^PUBLIC_IP$"
+    volumes:
+      # Mismo destino que en Compose base: sustituye dev.conf en produccion.
+      - ./nginx/prod.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     ports:
       - "443:443"
-    volumes:
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-#hola
