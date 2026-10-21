@@ -1,12 +1,7 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, redirect, url_for
 
 bp = Blueprint("todos", __name__)
 
-@bp.route("/")
+@bp.get("/")
 def index():
-    """
-    La página es un cascarón público sin datos.
-    Su JavaScript inicia sesión mediante /auth/login y carga las tareas
-    desde /api/todos enviando el header Bearer.
-    """
-    return render_template("index.html")
+    return redirect(url_for("carta.restaurantes"))

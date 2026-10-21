@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block title %}Cocina{% endblock %}
+{% block content %}<h2>Cola de cocina</h2>
+{% for p in pedidos %}<article><p>Pedido #{{ p.id }} — {{ p.restaurante.nombre }} — {{ p.estado }}</p>
+<ul>{% for item in p.items %}<li>{{ item.cantidad }} × {{ item.plato.nombre }}</li>{% endfor %}</ul>
+{% if puede_avanzar %}<form method="post" action="{{ url_for('carta.avanzar', pedido_id=p.id) }}"><button type="submit">Avanzar estado</button></form>{% endif %}
+</article>{% else %}<p>No hay pedidos activos.</p>{% endfor %}
+{% endblock %}

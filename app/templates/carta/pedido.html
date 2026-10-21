@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block title %}Pedido #{{ pedido.id }}{% endblock %}
+{% block content %}<h2>Pedido #{{ pedido.id }}</h2><p>Estado: {{ pedido.estado }} | Total: {{ pedido.total }}</p>
+<ul>{% for item in pedido.items %}<li>{{ item.plato.nombre }} — {{ item.cantidad }} × {{ item.precio_unitario }}</li>{% endfor %}</ul>
+{% if pedido.estado == 'pendiente' %}<form method="post" action="{{ url_for('carta.cancelar', pedido_id=pedido.id) }}"><button type="submit">Cancelar pedido</button></form>{% endif %}
+<a href="{{ url_for('carta.mis_pedidos') }}">Mis pedidos</a>
+{% endblock %}

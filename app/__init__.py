@@ -25,6 +25,8 @@ def create_app(config_class=Config):
     # Un cliente de claves por app, para que su caché dure lo que el proceso
     app.extensions["auth0_jwks"] = jwks_client(app.config["AUTH0_DOMAIN"])
 
+    from .carta_routes import bp as carta_bp
+    app.register_blueprint(carta_bp)
     app.register_blueprint(todos_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(restaurant_bp)

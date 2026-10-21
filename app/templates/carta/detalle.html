@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}{{ restaurante.nombre }}{% endblock %}
+{% block content %}
+<h2>{{ restaurante.nombre }}</h2><p>{{ restaurante.descripcion }}</p>
+<p>La carta es pública. Para pedir, debes iniciar sesión con Auth0 y tener el permiso create:pedidos.</p>
+<form method="post" action="{{ url_for('carta.crear_pedido', restaurante_id=restaurante.id) }}">
+<table><tr><th>Plato</th><th>Precio</th><th>Disponible</th><th>Cantidad (0–20)</th></tr>
+{% for p in platos %}<tr><td>{{ p.nombre }}</td><td>{{ p.precio }}</td><td>{{ 'Sí' if p.disponible else 'No' }}</td><td>
+{% if p.disponible %}<input type="hidden" name="plato_id" value="{{ p.id }}"><input type="number" min="0" max="20" step="1" name="cantidad" value="0" required>
+{% else %}No disponible{% endif %}</td></tr>{% endfor %}</table>
+<button type="submit">Hacer pedido</button></form>
+<p><a href="{{ url_for('carta.restaurantes') }}">Volver</a></p>
+{% endblock %}

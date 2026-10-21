@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block title %}Mis pedidos{% endblock %}
+{% block content %}<h2>Mis pedidos</h2>
+{% for p in pedidos %}<p><a href="{{ url_for('carta.ver_pedido', pedido_id=p.id) }}">Pedido #{{ p.id }}</a> — {{ p.estado }} — Total {{ p.total }}</p>
+{% else %}<p>No tienes pedidos.</p>{% endfor %}
+{% endblock %}

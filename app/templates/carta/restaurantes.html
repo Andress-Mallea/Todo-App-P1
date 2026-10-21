@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block title %}Restaurantes{% endblock %}
+{% block content %}
+<h2>Restaurantes</h2>
+{% for r in restaurantes %}<p><a href="{{ url_for('carta.detalle_restaurante', restaurante_id=r.id) }}">{{ r.nombre }}</a> — {{ r.descripcion }}</p>
+{% else %}<p>No hay restaurantes todavía.</p>{% endfor %}
+{% endblock %}
