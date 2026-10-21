@@ -7,3 +7,4 @@ venv/
 id_ed25519
 id_rsa
 .DS_Store
+.env.production
