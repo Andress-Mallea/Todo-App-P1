@@ -203,3 +203,18 @@ class PromocionPlato(models.Model):
 
     def __str__(self):
         return f"{self.promocion} - {self.plato}"
+class CuentaLocal(models.Model):
+    username = models.CharField(
+        max_length=80,
+        unique=True,
+        db_index=True
+    )
+
+    password_hash = models.CharField(max_length=255)
+
+    fecha_registro = models.DateTimeField(
+        default=timezone.now
+    )
+
+    def __str__(self):
+        return self.username

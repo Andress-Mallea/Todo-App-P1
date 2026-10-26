@@ -118,3 +118,36 @@ class Cliente(db.Model):
     fecha_registro = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
     usuario = db.relationship("Usuario", backref=db.backref("perfil_cliente", uselist=False))
+    
+class CuentaLocal(db.Model):
+    __tablename__ = "carta_cuentalocal"
+
+    id = db.Column(
+        db.BigInteger,
+        primary_key=True
+    )
+    username = db.Column(
+        db.String(80),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    password_hash = db.Column(
+        db.String(255),
+        nullable=False
+    )
+
+    fecha_registro = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=utcnow
+    )
+
+    def set_password(self, password):
+        from werkzeug.security import generate_password_hash
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        from werkzeug.security import check_password_hash
+        return check_password_hash(self.password_hash, password)
