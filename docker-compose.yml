@@ -19,23 +19,26 @@ services:
     build: .
     entrypoint: []
     command:
-    - sh
-    - -ec
-    - 'echo "=== INICIANDO MIGRACIONES DJANGO ==="
+      - sh
+      - -ec
+      - |
+        echo "=== INICIANDO MIGRACIONES DJANGO ==="
 
-      python manage.py migrate --noinput
+        python manage.py migrate --noinput
 
-      python manage.py collectstatic --noinput
+        python manage.py collectstatic --noinput
 
-      echo "=== MIGRACIONES COMPLETADAS ==="
+        echo "=== MIGRACIONES COMPLETADAS ==="
 
-      (python manage.py shell -c "from django.contrib.auth import get_user_model; import os; U=get_user_model(); name=os.environ[''DJANGO_SUPERUSER_USERNAME''];
-      user,created=U.objects.get_or_create(username=name, defaults={''email'':os.environ[''DJANGO_SUPERUSER_EMAIL''],''is_staff'':True,''is_superuser'':True});
-      user.is_staff=True; user.is_superuser=True; user.set_password(os.environ[''DJANGO_SUPERUSER_PASSWORD'']); user.save()"
-      )
+        python manage.py shell -c "from django.contrib.auth import get_user_model; import os; U=get_user_model(); name=os.environ['DJANGO_SUPERUSER_USERNAME']; user,created=U.objects.get_or_create(username=name, defaults={'email':os.environ['DJANGO_SUPERUSER_EMAIL'],'is_staff':True,'is_superuser':True}); user.is_staff=True; user.is_superuser=True; user.set_password(os.environ['DJANGO_SUPERUSER_PASSWORD']); user.save()"
 
-      '
+        if [ "$$SEED_DEMO_ENABLED" = "1" ]; then
+          echo "=== INICIANDO POBLADO DEMO ==="
+          python manage.py seed_demo
+          echo "=== POBLADO DEMO COMPLETADO ==="
+        fi
     environment: &id001
+      SEED_DEMO_ENABLED: ${SEED_DEMO_ENABLED:-0}
       POSTGRES_DB: ${POSTGRES_DB:?Define POSTGRES_DB en .env}
       POSTGRES_USER: ${POSTGRES_USER:?Define POSTGRES_USER en .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
@@ -47,7 +50,9 @@ services:
       DJANGO_SUPERUSER_USERNAME: ${DJANGO_SUPERUSER_USERNAME:?Define DJANGO_SUPERUSER_USERNAME}
       DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL:?Define DJANGO_SUPERUSER_EMAIL}
       DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:?Define DJANGO_SUPERUSER_PASSWORD}
-
+      SEED_CLIENTE_PASSWORD: ${SEED_CLIENTE_PASSWORD:-}
+      SEED_COCINA_PASSWORD: ${SEED_COCINA_PASSWORD:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
     volumes:
     - static_files:/site/staticfiles
     depends_on:
