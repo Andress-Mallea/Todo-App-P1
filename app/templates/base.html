@@ -11,7 +11,9 @@
 {% if 'write:carta' in current_user.permissions %}<a href="{{ url_for('carta_admin.indice') }}">Administrar carta</a>{% endif %}
 {% if 'read:pedidos' in current_user.permissions %}<a href="{{ url_for('carta.cocina') }}">Cocina</a>{% endif %}
 <form method="post" action="{{ url_for('auth.logout') }}"><button type="submit">Salir</button></form>
-{% else %}<a href="{{ url_for('auth.login') }}">Iniciar sesión</a>{% endif %}</nav></header>
+{% else %}<a href="{{ url_for('local_auth.pagina_login_local') }}">
+    Iniciar sesión
+</a>{% endif %}</nav></header>
 <main>{% with messages = get_flashed_messages(with_categories=true) %}{% for category, msg in messages %}
 <p class="{{ category }}">{{ msg }}</p>{% endfor %}{% endwith %}{% block content %}{% endblock %}</main>
 <footer><small>La Carta 2.0</small></footer>{% block scripts %}{% endblock %}

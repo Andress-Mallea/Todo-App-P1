@@ -1,6 +1,6 @@
 import re
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, render_template, request
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -9,7 +9,9 @@ from app.models import CuentaLocal
 from .local_tokens import create_local_access_token
 
 bp = Blueprint("local_auth", __name__, url_prefix="/auth/local")
-
+@bp.get("/entrar")
+def pagina_login_local():
+    return render_template("auth/login_unificado.html")
 USERNAME_RE = re.compile(r"^[a-z0-9_.-]{3,80}$")
 
 # Evita diferencias evidentes en el tiempo de respuesta cuando

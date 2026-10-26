@@ -1,7 +1,7 @@
 """R1: carta pública, pedidos atómicos y transiciones de estado."""
 from decimal import Decimal
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from sqlalchemy.exc import SQLAlchemyError
 
 from .auth import requires_auth
@@ -75,15 +75,51 @@ def crear_pedido(payload, restaurante_id):
     except SQLAlchemyError:
         db.session.rollback()  # Nada queda a medias.
         raise
+    # Para JWT local devolvemos JSON, sin redirección.
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "success": True,
+            "message": "Pedido creado correctamente.",
+            "pedido_id": pedido.id,
+            "url": url_for("carta.ver_pedido", pedido_id=pedido.id)
+        }), 201
+
+    # Auth0 mantiene el comportamiento original.
     flash("Pedido creado correctamente.", "success")
-    return redirect(url_for("carta.ver_pedido", pedido_id=pedido.id), code=303)
+    return redirect(
+        url_for("carta.ver_pedido", pedido_id=pedido.id),
+        code=303
+    )
 
 
 @bp.get("/pedidos")
 @requires_auth("read:mis-pedidos")
 def mis_pedidos(payload):
-    pedidos = Pedido.query.filter_by(cliente=payload["sub"]).order_by(Pedido.fecha.desc()).all()
-    return render_template("carta/mis_pedidos.html", pedidos=pedidos)
+    pedidos = (
+        Pedido.query
+        .filter_by(cliente=payload["sub"])
+        .order_by(Pedido.fecha.desc())
+        .all()
+    )
+
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "success": True,
+            "pedidos": [
+                {
+                    "id": p.id,
+                    "estado": p.estado,
+                    "total": str(p.total),
+                    "fecha": p.fecha.isoformat()
+                }
+                for p in pedidos
+            ]
+        })
+
+    return render_template(
+        "carta/mis_pedidos.html",
+        pedidos=pedidos
+    )
 
 
 def pedido_del_cliente(pedido_id, sub):

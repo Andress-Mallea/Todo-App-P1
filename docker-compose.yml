@@ -75,6 +75,7 @@ services:
     build: .
     restart: unless-stopped
     environment:
+      SECRET_KEY: ${SECRET_KEY:?Define SECRET_KEY en .env}
       LOCAL_JWT_SECRET_KEY: ${LOCAL_JWT_SECRET_KEY:?Define LOCAL_JWT_SECRET_KEY en .env}
       LOCAL_JWT_EXPIRES_MINUTES: ${LOCAL_JWT_EXPIRES_MINUTES:-60}
       LOCAL_JWT_ISSUER: ${LOCAL_JWT_ISSUER:-lacarta-jwt-local}
