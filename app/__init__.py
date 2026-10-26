@@ -8,6 +8,8 @@ from .extensions import db
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    if len(app.config["LOCAL_JWT_SECRET_KEY"].encode("utf-8")) < 32:
+        raise RuntimeError("LOCAL_JWT_SECRET_KEY debe tener al menos 32 bytes")
     for key in ("AUTH0_DOMAIN", "AUTH0_AUDIENCE", "AUTH0_CLIENT_ID", "AUTH0_CLIENT_SECRET"):
         if not app.config[key]:
             raise RuntimeError(f"Falta {key} en el entorno del contenedor Flask")
@@ -21,6 +23,7 @@ def create_app(config_class=Config):
     from .auth.handlers import handle_auth_error
     from .auth.oauth import init_auth0
     from .auth.routes import bp as auth_bp
+    from .auth.local_routes import bp as local_auth_bp
     from .auth.decorators import current_user
     from .routes import bp as root_bp
     from .carta_routes import bp as carta_bp
@@ -28,7 +31,7 @@ def create_app(config_class=Config):
 
     init_auth0(app)
     app.extensions["auth0_jwks"] = jwks_client(app.config["AUTH0_DOMAIN"])
-    for bp in (auth_bp, root_bp, carta_bp, carta_admin_bp):
+    for bp in (auth_bp, local_auth_bp, root_bp, carta_bp, carta_admin_bp):
         app.register_blueprint(bp)
     app.register_error_handler(AuthError, handle_auth_error)
 

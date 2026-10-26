@@ -14,6 +14,13 @@ class Config:
     AUTH0_AUDIENCE = os.environ.get("AUTH0_AUDIENCE", "")
     AUTH0_CLIENT_ID = os.environ.get("AUTH0_CLIENT_ID", "")
     AUTH0_CLIENT_SECRET = os.environ.get("AUTH0_CLIENT_SECRET", "")
+    LOCAL_JWT_SECRET_KEY = os.environ.get("LOCAL_JWT_SECRET_KEY", "")
+    LOCAL_JWT_EXPIRES_MINUTES = int(
+        os.environ.get("LOCAL_JWT_EXPIRES_MINUTES", "60")
+    )
+    LOCAL_JWT_ISSUER = os.environ.get(
+        "LOCAL_JWT_ISSUER", "lacarta-jwt-local"
+    )
 
 class TestConfig(Config):
     TESTING = True
@@ -23,3 +30,5 @@ class TestConfig(Config):
     AUTH0_AUDIENCE = "test-api"
     AUTH0_CLIENT_ID = "test-client"
     AUTH0_CLIENT_SECRET = "test-client-secret"
+    LOCAL_JWT_SECRET_KEY = "test-local-jwt-secret-at-least-32-bytes-long"
+    LOCAL_JWT_EXPIRES_MINUTES = 5

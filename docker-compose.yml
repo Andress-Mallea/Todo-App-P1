@@ -47,6 +47,7 @@ services:
       DJANGO_SUPERUSER_USERNAME: ${DJANGO_SUPERUSER_USERNAME:?Define DJANGO_SUPERUSER_USERNAME}
       DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL:?Define DJANGO_SUPERUSER_EMAIL}
       DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:?Define DJANGO_SUPERUSER_PASSWORD}
+
     volumes:
     - static_files:/site/staticfiles
     depends_on:
@@ -74,7 +75,9 @@ services:
     build: .
     restart: unless-stopped
     environment:
-      SECRET_KEY: ${SECRET_KEY:?Define SECRET_KEY en .env}
+      LOCAL_JWT_SECRET_KEY: ${LOCAL_JWT_SECRET_KEY:?Define LOCAL_JWT_SECRET_KEY en .env}
+      LOCAL_JWT_EXPIRES_MINUTES: ${LOCAL_JWT_EXPIRES_MINUTES:-60}
+      LOCAL_JWT_ISSUER: ${LOCAL_JWT_ISSUER:-lacarta-jwt-local}
       AUTH0_DOMAIN: ${AUTH0_DOMAIN:?Define AUTH0_DOMAIN en .env}
       AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:?Define AUTH0_AUDIENCE en .env}
       AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:?Define AUTH0_CLIENT_ID en .env}
@@ -82,6 +85,7 @@ services:
       AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET:?Define AUTH0_CLIENT_SECRET en .env}
       SESSION_COOKIE_SECURE: '0'
       BEHIND_PROXY: '1'
+      
     command:
     - gunicorn
     - --config
