@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle del pedido{% endblock %}
+
+{% block content %}
+
+<h2>Detalle del pedido #{{ pedido_id }}</h2>
+
+<p id="mensaje-detalle">Cargando pedido...</p>
+
+<section id="contenido-pedido" hidden>
+    <p><strong>Restaurante:</strong> <span id="restaurante"></span></p>
+    <p><strong>Estado:</strong> <span id="estado"></span></p>
+    <p><strong>Fecha:</strong> <span id="fecha"></span></p>
+    <p><strong>Total:</strong> Bs <span id="total"></span></p>
+
+    <h3>Platos del pedido</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Plato</th>
+                <th>Cantidad</th>
+                <th>Precio</th>
+                <th>Subtotal</th>
+            </tr>
+        </thead>
+        <tbody id="items-pedido"></tbody>
+    </table>
+
+    <button type="button" id="cancelar-pedido" hidden>
+        Cancelar pedido
+    </button>
+</section>
+
+<p>
+    <a href="{{ url_for('carta.mis_pedidos_local') }}">
+        Volver a Mis pedidos
+    </a>
+</p>
+
+<script>
+    const PEDIDO_ID = {{ pedido_id | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/pedido_local.js') }}"></script>
+
+{% endblock %}

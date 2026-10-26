@@ -120,7 +120,9 @@ def mis_pedidos(payload):
         "carta/mis_pedidos.html",
         pedidos=pedidos
     )
-
+@bp.get("/mis-pedidos-local")
+def mis_pedidos_local():
+    return render_template("carta/mis_pedidos_local.html")
 
 def pedido_del_cliente(pedido_id, sub):
     # 404 evita revelar la existencia de pedidos de otros clientes.
@@ -134,8 +136,38 @@ def pedido_del_cliente(pedido_id, sub):
 @requires_auth("read:mis-pedidos")
 def ver_pedido(payload, pedido_id):
     pedido = pedido_del_cliente(pedido_id, payload["sub"])
-    return render_template("carta/pedido.html", pedido=pedido)
 
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "success": True,
+            "pedido": {
+                "id": pedido.id,
+                "estado": pedido.estado,
+                "total": str(pedido.total),
+                "fecha": pedido.fecha.isoformat(),
+                "restaurante": pedido.restaurante.nombre,
+                "items": [
+                    {
+                        "plato": item.plato.nombre,
+                        "cantidad": item.cantidad,
+                        "precio_unitario": str(item.precio_unitario),
+                        "subtotal": str(
+                            item.precio_unitario * item.cantidad
+                        )
+                    }
+                    for item in pedido.items
+                ]
+            }
+        })
+
+    # Auth0 conserva su página tradicional.
+    return render_template("carta/pedido.html", pedido=pedido)
+@bp.get("/mis-pedidos-local/<int:pedido_id>")
+def detalle_pedido_local(pedido_id):
+    return render_template(
+        "carta/pedido_local.html",
+        pedido_id=pedido_id
+    )
 
 @bp.post("/pedidos/<int:pedido_id>/cancelar")
 @requires_auth("read:mis-pedidos")
@@ -153,6 +185,13 @@ def cancelar(payload, pedido_id):
     except SQLAlchemyError:
         db.session.rollback()
         raise
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "success": True,
+            "message": "Pedido cancelado correctamente.",
+            "pedido_id": pedido_id,
+            "estado": Pedido.CANCELADO
+        }), 200
     return redirect(url_for("carta.ver_pedido", pedido_id=pedido_id), code=303)
 
 

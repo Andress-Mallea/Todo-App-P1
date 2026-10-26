@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Mis pedidos - La Carta 2.0{% endblock %}
+
+{% block content %}
+<h2>Mis pedidos</h2>
+
+<p id="mensaje-pedidos">Cargando pedidos...</p>
+
+<table id="tabla-pedidos" hidden>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Fecha</th>
+            <th>Estado</th>
+            <th>Total</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody id="lista-pedidos"></tbody>
+</table>
+
+<p>
+    <a href="{{ url_for('carta.restaurantes') }}">
+        Volver a restaurantes
+    </a>
+</p>
+
+<script src="{{ url_for('static', filename='js/mis_pedidos_local.js') }}"></script>
+{% endblock %}

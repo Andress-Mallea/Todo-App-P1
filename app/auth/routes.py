@@ -40,10 +40,34 @@ def callback():
     # Validamos el access token con el mismo verificador de las rutas protegidas.
     try:
         payload = verify_decode_jwt(token["access_token"])
-    except (AuthError, KeyError):
-        current_app.logger.warning("Token de Auth0 inválido en el callback")
+    except AuthError as err:
+        current_app.logger.warning(
+            "Error verificando token Auth0: codigo=%s, descripcion=%s",
+            err.error.get("code"),
+            err.error.get("description"),
+        )
+
         session.clear()
-        flash("No se pudo verificar el acceso. Intenta iniciar sesión nuevamente.", "error")
+
+        flash(
+            "No se pudo verificar el acceso. Intenta iniciar sesión nuevamente.",
+            "error"
+        )
+
+        return redirect(url_for("carta.restaurantes"))
+
+    except KeyError:
+        current_app.logger.warning(
+            "La respuesta de Auth0 no contiene access_token"
+        )
+
+        session.clear()
+
+        flash(
+            "No se pudo verificar el acceso. Intenta iniciar sesión nuevamente.",
+            "error"
+        )
+
         return redirect(url_for("carta.restaurantes"))
 
     profile = token.get("userinfo") or {}

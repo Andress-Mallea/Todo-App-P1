@@ -3,17 +3,98 @@
 <title>{% block title %}La Carta 2.0{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 <style>body{font-family:Arial,sans-serif;max-width:960px;margin:2rem auto;padding:0 1rem}nav{display:flex;gap:1rem;align-items:center;flex-wrap:wrap}main{margin-top:2rem}input[type=number]{max-width:5rem}.error{color:#b91c1c}</style>
-</head><body><header><h1><a href="{{ url_for('carta.restaurantes') }}">La Carta 2.0</a></h1>
-<nav><a href="{{ url_for('carta.restaurantes') }}">Restaurantes</a>
-{% if current_user %}
-<span>{{ current_user.name }}</span>
-{% if 'read:mis-pedidos' in current_user.permissions %}<a href="{{ url_for('carta.mis_pedidos') }}">Mis pedidos</a>{% endif %}
-{% if 'write:carta' in current_user.permissions %}<a href="{{ url_for('carta_admin.indice') }}">Administrar carta</a>{% endif %}
-{% if 'read:pedidos' in current_user.permissions %}<a href="{{ url_for('carta.cocina') }}">Cocina</a>{% endif %}
-<form method="post" action="{{ url_for('auth.logout') }}"><button type="submit">Salir</button></form>
-{% else %}<a href="{{ url_for('local_auth.pagina_login_local') }}">
-    Iniciar sesión
-</a>{% endif %}</nav></header>
+</head>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    const token = sessionStorage.getItem("local_jwt_token");
+
+    if (!token) return;
+
+    const nombre = document.getElementById("nombre-usuario-local");
+    const pedidos = document.getElementById("enlace-pedidos-local");
+    const salir = document.getElementById("salir-local");
+    const login = document.getElementById("enlace-login");
+
+    // Si hay una sesión Auth0, sus elementos se renderizan
+    // desde Flask y no debemos mezclar ambas interfaces.
+    if (!nombre || !pedidos || !salir || !login) {
+        return;
+    }
+
+    try {
+        const parte = token.split(".")[1];
+        const normalizada = parte.replace(/-/g, "+").replace(/_/g, "/");
+        const payload = JSON.parse(atob(normalizada));
+
+        // Solo muestra la interfaz si el token no ha vencido.
+        if (!payload.exp || payload.exp * 1000 <= Date.now()) {
+            sessionStorage.removeItem("local_jwt_token");
+            return;
+        }
+
+        nombre.textContent = payload.username || "Cliente";
+        nombre.hidden = false;
+
+        pedidos.hidden = false;
+        salir.hidden = false;
+        login.hidden = true;
+
+        salir.addEventListener("click", () => {
+            sessionStorage.removeItem("local_jwt_token");
+            window.location.href = "/restaurantes";
+        });
+
+    } catch (error) {
+        sessionStorage.removeItem("local_jwt_token");
+        console.error("JWT local inválido.");
+    }
+});
+</script>
+<body><header><h1><a href="{{ url_for('carta.restaurantes') }}">La Carta 2.0</a></h1>
+<nav>
+    <a href="{{ url_for('carta.restaurantes') }}">Restaurantes</a>
+
+    {% if current_user %}
+        <!-- Usuario autenticado con Auth0 -->
+        <span>{{ current_user.name }}</span>
+
+        {% if 'read:mis-pedidos' in current_user.permissions %}
+            <a href="{{ url_for('carta.mis_pedidos') }}">Mis pedidos</a>
+        {% endif %}
+
+        {% if 'write:carta' in current_user.permissions %}
+            <a href="{{ url_for('carta_admin.indice') }}">Administrar carta</a>
+        {% endif %}
+
+        {% if 'read:pedidos' in current_user.permissions %}
+            <a href="{{ url_for('carta.cocina') }}">Cocina</a>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('auth.logout') }}">
+            <button type="submit">Salir</button>
+        </form>
+
+    {% else %}
+        <!-- Estos elementos se activarán mediante JavaScript para JWT -->
+        <span id="nombre-usuario-local" hidden></span>
+
+        <a id="enlace-pedidos-local"
+           href="{{ url_for('carta.mis_pedidos_local') }}"
+           hidden>
+            Mis pedidos
+        </a>
+
+        <button type="button" id="salir-local" hidden>
+            Salir
+        </button>
+
+        <a id="enlace-login"
+           href="{{ url_for('local_auth.pagina_login_local') }}">
+            Iniciar sesión
+        </a>
+    {% endif %}
+</nav></header>
 <main>{% with messages = get_flashed_messages(with_categories=true) %}{% for category, msg in messages %}
 <p class="{{ category }}">{{ msg }}</p>{% endfor %}{% endwith %}{% block content %}{% endblock %}</main>
 <footer><small>La Carta 2.0</small></footer>{% block scripts %}{% endblock %}
