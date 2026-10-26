@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block title %}Administración JWT{% endblock %}
+
+{% block content %}
+<h2>Administrar la carta</h2>
+
+<p id="mensaje-admin">Comprobando permisos...</p>
+
+<section id="panel-admin-local" hidden>
+    <h3>Restaurantes</h3>
+    <form id="form-crear-restaurante">
+        <h4>Crear restaurante</h4>
+
+        <p>
+            <label>
+                Nombre:
+                <input
+                    type="text"
+                    name="nombre"
+                    maxlength="150"
+                    required
+                >
+            </label>
+        </p>
+
+        <p>
+            <label>
+                Descripción:
+                <textarea name="descripcion"></textarea>
+            </label>
+        </p>
+
+        <button type="submit">Crear restaurante</button>
+    </form>
+    <p>
+        <a href="{{ url_for('carta_admin.panel_local') }}#restaurantes">
+            Administrar restaurantes
+        </a>
+    </p>
+    
+    <div id="lista-restaurantes"></div>
+
+    <h3>Platos</h3>
+    <form id="form-crear-plato">
+        <h4>Crear plato</h4>
+
+        <p>
+            <label>
+                Restaurante:
+                <select name="restaurante_id" id="select-restaurante-plato" required>
+                    <option value="">Selecciona un restaurante</option>
+                </select>
+            </label>
+        </p>
+
+        <p>
+            <label>
+                Nombre:
+                <input type="text" name="nombre" maxlength="150" required>
+            </label>
+        </p>
+
+        <p>
+            <label>
+                Descripción:
+                <textarea name="descripcion"></textarea>
+            </label>
+        </p>
+
+        <p>
+            <label>
+                Precio (Bs):
+                <input
+                    type="number"
+                    name="precio"
+                    min="0"
+                    max="99999999.99"
+                    step="0.01"
+                    required
+                >
+            </label>
+        </p>
+
+        <p>
+            <label>
+                <input type="checkbox" name="disponible" checked>
+                Disponible
+            </label>
+        </p>
+
+        <button type="submit">Crear plato</button>
+    </form>
+    <div id="lista-platos"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin_local.js') }}"></script>
+{% endblock %}

@@ -15,7 +15,8 @@ document.addEventListener("DOMContentLoaded",async  () => {
     const pedidos = document.getElementById("enlace-pedidos-local");
     const salir = document.getElementById("salir-local");
     const login = document.getElementById("enlace-login");
-
+    const enlaceCocina = document.getElementById("enlace-cocina-local");
+    const enlaceAdmin = document.getElementById("enlace-admin-local");
     // Si hay una sesión Auth0, sus elementos se renderizan
     // desde Flask y no debemos mezclar ambas interfaces.
     if (!nombre || !pedidos || !salir || !login) {
@@ -44,33 +45,63 @@ document.addEventListener("DOMContentLoaded",async  () => {
             sessionStorage.removeItem("local_jwt_token");
             window.location.href = "/restaurantes";
         });
-        const enlaceCocina = document.getElementById("enlace-cocina-local");
+        
 
     if (enlaceCocina) {
         enlaceCocina.style.display = "none";
+    }
 
-        try {
-            const respuesta = await fetch("/cocina", {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            });
+    if (enlaceAdmin) {
+        enlaceAdmin.style.display = "none";
+    }
 
-            if (respuesta.ok) {
-                const datos = await respuesta.json();
+    // Comprobar permisos reales desde Flask.
+    try {
+        const [respuestaPedidos, respuestaCocina, respuestaAdmin] =
+            await Promise.all([
+                fetch("/pedidos", {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }),
+                fetch("/cocina", {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }),
+                fetch("/administrar/", {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                })
+            ]);
 
-                if (datos.puede_avanzar) {
-                    enlaceCocina.style.display = "";
-                }
-            }
-        } catch (error) {
-            console.error("No se pudo comprobar el acceso a cocina:", error);
+        // Cliente JWT
+        if (respuestaPedidos.ok) {
+            pedidos.hidden = false;
         }
+
+        // Cocina JWT
+        if (respuestaCocina.ok && enlaceCocina) {
+            const datosCocina = await respuestaCocina.json();
+
+            if (datosCocina.puede_avanzar) {
+                enlaceCocina.style.display = "";
+            }
+        }
+
+        // Administrador JWT
+        if (respuestaAdmin.ok && enlaceAdmin) {
+            enlaceAdmin.style.display = "";
+        }
+
+     } catch (error) {
+        console.error("No se pudieron comprobar los permisos JWT:", error);
     }
 
     } catch (error) {
+        console.error("Error al procesar el JWT local:", error);
         sessionStorage.removeItem("local_jwt_token");
-        console.error("JWT local inválido.");
     }
 });
 </script>
@@ -108,9 +139,14 @@ document.addEventListener("DOMContentLoaded",async  () => {
             Mis pedidos
         </a>
         <a id="enlace-cocina-local"
-        href="{{ url_for('carta.cocina_local') }}"
-        style="display: none;">
-            Cocina
+            href="{{ url_for('carta.cocina_local') }}"
+            style="display: none;">
+                Cocina
+        </a>
+        <a id="enlace-admin-local"
+            href="{{ url_for('carta_admin.panel_local') }}"
+            style="display: none;">
+                Administrar carta
         </a>
         <button type="button" id="salir-local" hidden>
             Salir

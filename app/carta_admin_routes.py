@@ -110,72 +110,274 @@ def indice(payload):
 @bp.route('/restaurantes/nuevo', methods=['GET', 'POST'])
 @requires_auth('write:carta')
 def nuevo_restaurante(payload):
+
     if request.method == 'POST':
-        db.session.add(Restaurante(nombre=_nombre(), descripcion=request.form.get('descripcion', '').strip()))
+
+        restaurante = Restaurante(
+            nombre=_nombre(),
+            descripcion=request.form.get('descripcion', '').strip()
+        )
+
+        db.session.add(restaurante)
         _guardar()
+
+        # JWT local: devolver JSON.
+        if payload["sub"].startswith("local:"):
+            return jsonify({
+                "success": True,
+                "message": "Restaurante creado correctamente.",
+                "restaurante": {
+                    "id": restaurante.id,
+                    "nombre": restaurante.nombre,
+                    "descripcion": restaurante.descripcion
+                }
+            }), 201
+
+        # Auth0: conservar el comportamiento original.
         flash('Restaurante creado.', 'success')
-        return redirect(url_for('carta_admin.indice'), code=303)
-    return render_template('carta_admin/restaurante_form.html', restaurante=None)
+        return redirect(
+            url_for('carta_admin.indice'),
+            code=303
+        )
+
+    # Los formularios HTML tradicionales son para Auth0.
+    # Evitamos entregar la página de edición a clientes JWT.
+    if payload["sub"].startswith("local:"):
+        abort(405, "Utiliza el formulario de administración JWT.")
+
+    return render_template(
+        'carta_admin/restaurante_form.html',
+        restaurante=None
+    )
 
 
 @bp.route('/restaurantes/<int:restaurante_id>/editar', methods=['GET', 'POST'])
 @requires_auth('write:carta')
 def editar_restaurante(payload, restaurante_id):
+
     restaurante = db.get_or_404(Restaurante, restaurante_id)
+
     if request.method == 'POST':
         restaurante.nombre = _nombre()
-        restaurante.descripcion = request.form.get('descripcion', '').strip()
+        restaurante.descripcion = request.form.get(
+            'descripcion', ''
+        ).strip()
+
         _guardar()
+
+        # JWT local: respuesta JSON
+        if payload["sub"].startswith("local:"):
+            return jsonify({
+                "success": True,
+                "message": "Restaurante actualizado correctamente.",
+                "restaurante": {
+                    "id": restaurante.id,
+                    "nombre": restaurante.nombre,
+                    "descripcion": restaurante.descripcion
+                }
+            }), 200
+
+        # Auth0: conserva su redirección original
         flash('Restaurante actualizado.', 'success')
-        return redirect(url_for('carta_admin.indice'), code=303)
-    return render_template('carta_admin/restaurante_form.html', restaurante=restaurante)
+        return redirect(
+            url_for('carta_admin.indice'),
+            code=303
+        )
+
+    # JWT local: devuelve los datos para un futuro formulario JavaScript
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "restaurante": {
+                "id": restaurante.id,
+                "nombre": restaurante.nombre,
+                "descripcion": restaurante.descripcion
+            }
+        }), 200
+
+    # Auth0: conserva el formulario HTML existente
+    return render_template(
+        'carta_admin/restaurante_form.html',
+        restaurante=restaurante
+    )
 
 
 @bp.post('/restaurantes/<int:restaurante_id>/eliminar')
 @requires_auth('delete:carta')
 def eliminar_restaurante(payload, restaurante_id):
+
     restaurante = db.get_or_404(Restaurante, restaurante_id)
-    # No permitir borrado en cascada de platos o pedidos.
+
+    # Impedir eliminar restaurantes que contienen platos.
     if Plato.query.filter_by(restaurante_id=restaurante_id).first():
         abort(409, 'El restaurante tiene platos. No puede eliminarse.')
+
+    # Conservar la información antes de eliminar el registro.
+    restaurante_eliminado = {
+        "id": restaurante.id,
+        "nombre": restaurante.nombre
+    }
+
     db.session.delete(restaurante)
     _guardar()
+
+    # JWT local: respuesta JSON
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "success": True,
+            "message": "Restaurante eliminado correctamente.",
+            "restaurante": restaurante_eliminado
+        }), 200
+
+    # Auth0: comportamiento original
     flash('Restaurante eliminado.', 'success')
-    return redirect(url_for('carta_admin.indice'), code=303)
+    return redirect(
+        url_for('carta_admin.indice'),
+        code=303
+    )
 
 
 @bp.route('/platos/nuevo', methods=['GET', 'POST'])
 @requires_auth('write:carta')
 def nuevo_plato(payload):
-    if request.method == 'POST':
-        db.session.add(Plato(**_datos_plato()))
-        _guardar()
-        flash('Plato creado.', 'success')
-        return redirect(url_for('carta_admin.indice'), code=303)
-    return render_template('carta_admin/plato_form.html', plato=None,
-                           restaurantes=Restaurante.query.order_by(Restaurante.nombre).all())
 
+    if request.method == 'POST':
+
+        # Reutilizamos todas las validaciones existentes.
+        datos = _datos_plato()
+
+        plato = Plato(**datos)
+        db.session.add(plato)
+        _guardar()
+
+        # Administrador JWT local: respuesta JSON.
+        if payload["sub"].startswith("local:"):
+            return jsonify({
+                "success": True,
+                "message": "Plato creado correctamente.",
+                "plato": {
+                    "id": plato.id,
+                    "nombre": plato.nombre,
+                    "descripcion": plato.descripcion,
+                    "precio": str(plato.precio),
+                    "disponible": plato.disponible,
+                    "restaurante_id": plato.restaurante_id
+                }
+            }), 201
+
+        # Administrador Auth0: comportamiento original.
+        flash('Plato creado.', 'success')
+        return redirect(
+            url_for('carta_admin.indice'),
+            code=303
+        )
+
+    # JWT utilizará su propia interfaz JavaScript.
+    if payload["sub"].startswith("local:"):
+        abort(405, "Utiliza el formulario de administración JWT.")
+
+    # Auth0 conserva el formulario HTML existente.
+    return render_template(
+        'carta_admin/plato_form.html',
+        plato=None,
+        restaurantes=Restaurante.query.order_by(
+            Restaurante.nombre
+        ).all()
+    )
 
 @bp.route('/platos/<int:plato_id>/editar', methods=['GET', 'POST'])
 @requires_auth('write:carta')
 def editar_plato(payload, plato_id):
+
     plato = db.get_or_404(Plato, plato_id)
+
     if request.method == 'POST':
+        # Reutilizamos las validaciones existentes.
         datos = _datos_plato()
+
         for campo, valor in datos.items():
             setattr(plato, campo, valor)
-        _guardar()
-        flash('Plato actualizado.', 'success')
-        return redirect(url_for('carta_admin.indice'), code=303)
-    return render_template('carta_admin/plato_form.html', plato=plato,
-                           restaurantes=Restaurante.query.order_by(Restaurante.nombre).all())
 
+        _guardar()
+
+        # JWT local: respuesta JSON.
+        if payload["sub"].startswith("local:"):
+            return jsonify({
+                "success": True,
+                "message": "Plato actualizado correctamente.",
+                "plato": {
+                    "id": plato.id,
+                    "nombre": plato.nombre,
+                    "descripcion": plato.descripcion,
+                    "precio": str(plato.precio),
+                    "disponible": plato.disponible,
+                    "restaurante_id": plato.restaurante_id
+                }
+            }), 200
+
+        # Auth0: comportamiento original.
+        flash('Plato actualizado.', 'success')
+        return redirect(
+            url_for('carta_admin.indice'),
+            code=303
+        )
+
+    # JWT local: datos para la interfaz JavaScript.
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "plato": {
+                "id": plato.id,
+                "nombre": plato.nombre,
+                "descripcion": plato.descripcion,
+                "precio": str(plato.precio),
+                "disponible": plato.disponible,
+                "restaurante_id": plato.restaurante_id
+            }
+        }), 200
+
+    # Auth0: conserva el formulario HTML.
+    return render_template(
+        'carta_admin/plato_form.html',
+        plato=plato,
+        restaurantes=Restaurante.query.order_by(
+            Restaurante.nombre
+        ).all()
+    )
 
 @bp.post('/platos/<int:plato_id>/eliminar')
 @requires_auth('delete:carta')
 def eliminar_plato(payload, plato_id):
+
     plato = db.get_or_404(Plato, plato_id)
+
+    # Guardamos estos datos antes de eliminar el registro.
+    plato_eliminado = {
+        "id": plato.id,
+        "nombre": plato.nombre
+    }
+
     db.session.delete(plato)
-    _guardar()  # PostgreSQL impide borrar platos usados por ItemPedido.
-    flash('Plato eliminado.', 'success')
-    return redirect(url_for('carta_admin.indice'), code=303)
+
+    # Conservamos la validación de integridad existente.
+    # PostgreSQL impide eliminar platos utilizados en pedidos.
+    _guardar()
+
+    # JWT local: respuesta JSON.
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "success": True,
+            "message": "Plato eliminado correctamente.",
+            "plato": plato_eliminado
+        }), 200
+
+    # Auth0: conserva su comportamiento original.
+    flash("Plato eliminado.", "success")
+    return redirect(
+        url_for("carta_admin.indice"),
+        code=303
+    )
+@bp.get('/local')
+def panel_local():
+        # Solo entrega la interfaz HTML.
+        # Los datos y las operaciones se protegen con JWT
+        # en las rutas administrativas existentes.
+    return render_template('carta_admin/index_local.html')
