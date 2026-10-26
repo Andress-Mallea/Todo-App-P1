@@ -14,8 +14,6 @@ def pagina_login_local():
     return render_template("auth/login_unificado.html")
 USERNAME_RE = re.compile(r"^[a-z0-9_.-]{3,80}$")
 
-# Evita diferencias evidentes en el tiempo de respuesta cuando
-# un usuario no existe.
 DUMMY_HASH = generate_password_hash("dummy-password")
 
 

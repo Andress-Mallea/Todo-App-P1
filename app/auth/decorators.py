@@ -72,7 +72,7 @@ def requires_auth(permission=""):
             ).strip()
 
             if authorization:
-                # Login JWT local: se exige el header Bearer.
+               
                 token = get_token_auth_header()
                 payload = verify_local_jwt(token)
 
@@ -100,14 +100,12 @@ def requires_auth(permission=""):
                         "description": "La cuenta ya no existe."
                     }, 401)
 
-                # Los permisos locales son asignados por el servidor.
-                # No aceptamos permisos inventados por el cliente.
                 rol = usuario.rol
 
                 payload["permissions"] = PERMISOS_POR_ROL.get(rol, [])
 
             else:
-                # Login Auth0: conserva el mecanismo original.
+               
                 payload = verify_decode_jwt(
                     get_token_from_session()
                 )

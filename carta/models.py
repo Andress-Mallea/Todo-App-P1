@@ -101,7 +101,6 @@ class ItemPedido(models.Model):
         return f"{self.cantidad} x {self.plato_id}"
 
 
-# Perfiles comerciales: Auth0 conserva las credenciales y los permisos.
 class Usuario(models.Model):
     auth0_sub = models.CharField(max_length=255, unique=True)
     nombre = models.CharField(max_length=120, blank=True)

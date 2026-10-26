@@ -11,8 +11,6 @@ def utcnow():
     return datetime.now(timezone.utc)
 
 
-# Modelo antiguo: se conserva temporalmente porque las rutas existentes pueden importarlo.
-
 class Restaurante(db.Model):
     __tablename__ = "carta_restaurante"
 
@@ -78,9 +76,6 @@ class ItemPedido(db.Model):
     pedido = db.relationship("Pedido", back_populates="items")
     plato = db.relationship("Plato", back_populates="items_pedido")
 
-
-# Perfiles creados mediante las migraciones de Django (carta.0002).
-# Auth0 gestiona identidad y permisos; estas tablas solo vinculan personas y restaurantes.
 class Usuario(db.Model):
     __tablename__ = "carta_usuario"
 

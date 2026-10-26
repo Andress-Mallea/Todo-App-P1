@@ -74,14 +74,10 @@ document.getElementById("form-pedido").addEventListener(
 
         const token = sessionStorage.getItem("local_jwt_token");
 
-        // Si no existe un JWT local, dejamos funcionar
-        // el formulario tradicional con Auth0.
         if (!token) {
             return;
         }
 
-        // Evitamos el envío tradicional solamente
-        // cuando estamos utilizando JWT local.
         event.preventDefault();
 
         const formulario = event.currentTarget;

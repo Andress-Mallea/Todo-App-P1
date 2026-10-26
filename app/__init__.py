@@ -18,7 +18,7 @@ def create_app(config_class=Config):
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     db.init_app(app)
-    from . import models  # noqa: F401
+    from . import models 
     from .auth import AuthError, jwks_client
     from .auth.handlers import handle_auth_error
     from .auth.oauth import init_auth0

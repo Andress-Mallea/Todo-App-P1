@@ -3,14 +3,13 @@
 {% block title %}My Todos{% endblock %}
 
 {% block content %}
-    {# Se muestra SIN token. #}
+    
     <section id="auth-view" class="card auth-card" hidden>
         <h2>Sign in</h2>
         <p>Auth0 muestra el inicio de sesión y el registro, y te devuelve aquí.</p>
         <button type="button" id="login" class="btn btn-primary">Sign in with Auth0</button>
     </section>
 
-    {# Se muestra CON un token. Llenado por app.js consultando GET /api/todos. #}
     <div id="todos-view" hidden>
         <section class="card">
             <h2>Add a todo</h2>

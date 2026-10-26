@@ -92,7 +92,6 @@ class Command(BaseCommand):
             created[model.__name__] += int(added)
             return obj
 
-        # Categorías: conservar las 6 conocidas y añadir 24 de demostración.
         categorias = {
             name: get(Categoria, {"nombre": name}, {"descripcion": description})
             for name, description in CATEGORIAS
@@ -106,7 +105,6 @@ class Command(BaseCommand):
         estados = [Pedido.PENDIENTE, Pedido.EN_PREPARACION, Pedido.LISTO,
                    Pedido.ENTREGADO, Pedido.CANCELADO]
 
-        # Conservar los cuatro restaurantes originales y sus menús.
         restaurantes_datos = list(RESTAURANTES)
         for n in range(5, 21):
             restaurantes_datos.append((
@@ -133,8 +131,6 @@ class Command(BaseCommand):
                     "disponible": True, "categoria": categorias[cat_name],
                 }))
 
-            # 120 platos en los 4 originales; 1.278 en los otros 16.
-            # Se conservan los 24 Especial demo 01..24 de cada restaurante original.
             cantidad_platos = 30 if r_idx <= 4 else (79 if r_idx in (5, 6) else 80)
             for n in range(1, cantidad_platos - len(base_menu) + 1):
                 name = (f"Especial demo {n:02d} - {rest_name}" if r_idx <= 4
@@ -148,15 +144,12 @@ class Command(BaseCommand):
                     "precio": precio, "disponible": True, "categoria": categorias[categoria],
                 }))
 
-            # 25 mesas por restaurante = 500. Las primeras 20 ya existían.
             for numero in range(1, 26):
                 get(Mesa, {"restaurante": restaurante, "numero": numero}, {
                     "capacidad": [2, 4, 4, 6, 8][(numero - 1) % 5],
                     "activa": True,
                 })
 
-            # 25 promociones por restaurante = 500; dos platos por promoción = 1000.
-            # Las primeras 10 promociones de los restaurantes originales no se alteran.
             for promo_idx in range(1, 26):
                 if promo_idx == 1:
                     nombre = "Promo bienvenida"
@@ -181,8 +174,6 @@ class Command(BaseCommand):
                 for pos in posiciones:
                     get(PromocionPlato, {"promocion": promo, "plato": platos[pos]})
 
-            # Conservar los 220 pedidos originales (55 en cada uno de los primeros 4).
-            # Nuevos: 8 restaurantes con 43 pedidos + 8 con 42 = 680.
             cantidad_pedidos = 55 if r_idx <= 4 else (43 if r_idx <= 12 else 42)
             for numero in range(1, cantidad_pedidos + 1):
                 marker = f"seed-demo:restaurante-{r_idx}:pedido-{numero}"
@@ -206,7 +197,7 @@ class Command(BaseCommand):
                     estado = estados[(numero + r_idx) % len(estados)]
                     primero = (numero * 3 + r_idx) % len(platos)
                     detalles = [(primero, 1 + numero % 3)]
-                    # 20 ítems adicionales, sobre los primeros 20 pedidos nuevos.
+                   
                     if pedidos_adicionales < 20:
                         detalles.append(((primero + 7) % len(platos), 1))
                     pedidos_adicionales += 1
@@ -228,7 +219,6 @@ class Command(BaseCommand):
         assert pedidos_adicionales == 680
         assert items_adicionales == 700
 
-        # Tres cuentas conocidas para demostrar el login. Contraseñas desde .env.
         cuentas_demo = [
             ("cliente_demo", CuentaLocal.ROL_CLIENTE, "Cliente", "Demo",
              "SEED_CLIENTE_PASSWORD"),
@@ -246,7 +236,6 @@ class Command(BaseCommand):
                 )
             contrasenas[username] = password
 
-        # 1199 clientes más y 299 cocineros más, sin crear administradores en masa.
         for n in range(1, 1200):
             cuentas_demo.append((f"cliente_demo_{n:04d}", CuentaLocal.ROL_CLIENTE,
                                  "Cliente", f"Demo {n:04d}", None))
@@ -264,8 +253,7 @@ class Command(BaseCommand):
 
             cuenta = CuentaLocal.objects.filter(username=username).first()
             if cuenta is None:
-                # Las cuentas sintéticas tienen contraseña aleatoria NO publicada.
-                # Solamente las 3 cuentas iniciales son utilizables como demo.
+               
                 pwd = contrasenas[username] if password_env else secrets.token_urlsafe(48)
                 cuenta = CuentaLocal.objects.create(
                     username=username,
@@ -287,10 +275,10 @@ class Command(BaseCommand):
                     "direccion": "Dirección de demostración",
                 })
             elif rol == CuentaLocal.ROL_COCINA:
-                # Distribuir empleados entre los 20 restaurantes.
+                
                 restaurante = restaurantes[(n - 1) % len(restaurantes)]
                 if username == "cocina_demo":
-                    restaurante = restaurantes[0]  # Dragón Pai
+                    restaurante = restaurantes[0]  
                 get(Empleado, {"usuario": usuario}, {
                     "cargo": "Cocinero", "restaurante": restaurante,
                     "activo": True,

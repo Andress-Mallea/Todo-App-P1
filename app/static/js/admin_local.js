@@ -38,7 +38,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const datos = await respuesta.json();
-        // Cargar restaurantes disponibles en el formulario de platos.
+        
         selectRestaurantePlato.replaceChildren();
 
         const opcionInicial = document.createElement("option");
@@ -56,7 +56,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         panel.hidden = false;
         mensaje.textContent = "";
 
-        // Mostrar restaurantes.
         listaRestaurantes.replaceChildren();
 
         if (!datos.restaurantes.length) {
@@ -200,7 +199,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             listaRestaurantes.appendChild(articulo);
                     });
 
-                    // Mostrar platos.
                     listaPlatos.replaceChildren();
 
                     if (!datos.platos.length) {
@@ -314,8 +312,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                                 mensaje.textContent = resultado.message;
 
-                                // Recargar los datos para reflejar el restaurante,
-                                // precio y disponibilidad actualizados.
                                 window.location.reload();
 
                             } catch (error) {
@@ -376,8 +372,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                                 const resultado = await respuesta.json();
 
-                                // Retirar el plato de la interfaz después de confirmar
-                                // que PostgreSQL completó la eliminación.
                                 articulo.remove();
 
                                 mensaje.textContent = resultado.message;
@@ -433,7 +427,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             mensaje.textContent = datos.message;
             formCrearRestaurante.reset();
 
-            // Actualizar las listas con los datos actuales.
             window.location.reload();
 
         } catch (error) {
@@ -479,7 +472,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             formCrearPlato.reset();
 
-            // Volver a consultar restaurantes y platos actualizados.
+            
             window.location.reload();
 
         } catch (error) {

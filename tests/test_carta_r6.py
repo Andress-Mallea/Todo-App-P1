@@ -75,7 +75,7 @@ def test_06_cocina_no_retrocede_listo_a_pendiente(app, client, entrar):
     with app.app_context():
         pedido_id = crear_pedido_de_prueba(estado=Pedido.LISTO)
     entrar("cocina")
-    # La ruta no acepta elegir estado: solo avanza según el mapa SIGUIENTE.
+   
     respuesta = client.post(f"/cocina/pedidos/{pedido_id}/avanzar", data={"estado": "pendiente"})
     assert respuesta.status_code == 303
     with app.app_context():
@@ -106,7 +106,7 @@ def test_07_cocina_no_ve_ni_avanza_pedido_ajeno(app, client, entrar):
     entrar("cocina")
     respuesta_lista = client.get("/cocina")
     assert respuesta_lista.status_code == 200
-    # Aseguramos que el pedido ajeno no figure en la cola de cocina.
+    
     assert f"/cocina/pedidos/{pedido_ajeno_id}/avanzar" not in respuesta_lista.get_data(as_text=True)
 
     respuesta_avanzar = client.post(f"/cocina/pedidos/{pedido_ajeno_id}/avanzar")

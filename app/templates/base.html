@@ -17,8 +17,7 @@ document.addEventListener("DOMContentLoaded",async  () => {
     const login = document.getElementById("enlace-login");
     const enlaceCocina = document.getElementById("enlace-cocina-local");
     const enlaceAdmin = document.getElementById("enlace-admin-local");
-    // Si hay una sesión Auth0, sus elementos se renderizan
-    // desde Flask y no debemos mezclar ambas interfaces.
+    
     if (!nombre || !pedidos || !salir || !login) {
         return;
     }
@@ -28,7 +27,6 @@ document.addEventListener("DOMContentLoaded",async  () => {
         const normalizada = parte.replace(/-/g, "+").replace(/_/g, "/");
         const payload = JSON.parse(atob(normalizada));
 
-        // Solo muestra la interfaz si el token no ha vencido.
         if (!payload.exp || payload.exp * 1000 <= Date.now()) {
             sessionStorage.removeItem("local_jwt_token");
             return;
@@ -55,7 +53,7 @@ document.addEventListener("DOMContentLoaded",async  () => {
         enlaceAdmin.style.display = "none";
     }
 
-    // Comprobar permisos reales desde Flask.
+    
     try {
         const [respuestaPedidos, respuestaCocina, respuestaAdmin] =
             await Promise.all([
@@ -76,12 +74,12 @@ document.addEventListener("DOMContentLoaded",async  () => {
                 })
             ]);
 
-        // Cliente JWT
+        
         if (respuestaPedidos.ok) {
             pedidos.hidden = false;
         }
 
-        // Cocina JWT
+        
         if (respuestaCocina.ok && enlaceCocina) {
             const datosCocina = await respuestaCocina.json();
 
@@ -90,7 +88,7 @@ document.addEventListener("DOMContentLoaded",async  () => {
             }
         }
 
-        // Administrador JWT
+       
         if (respuestaAdmin.ok && enlaceAdmin) {
             enlaceAdmin.style.display = "";
         }
@@ -110,7 +108,7 @@ document.addEventListener("DOMContentLoaded",async  () => {
     <a href="{{ url_for('carta.restaurantes') }}">Restaurantes</a>
 
     {% if current_user %}
-        <!-- Usuario autenticado con Auth0 -->
+        
         <span>{{ current_user.name }}</span>
 
         {% if 'read:mis-pedidos' in current_user.permissions %}
@@ -130,7 +128,7 @@ document.addEventListener("DOMContentLoaded",async  () => {
         </form>
 
     {% else %}
-        <!-- Estos elementos se activarán mediante JavaScript para JWT -->
+        
         <span id="nombre-usuario-local" hidden></span>
 
         <a id="enlace-pedidos-local"

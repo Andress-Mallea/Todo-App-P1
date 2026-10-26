@@ -3,7 +3,6 @@ from flask import current_app
 
 from .errors import AuthError
 
-# Auth0 firma con su clave privada (RS256); aquí solo se verifica con la pública.
 ALGORITHMS = ["RS256"]
 
 

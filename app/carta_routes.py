@@ -27,7 +27,6 @@ def detalle_restaurante(restaurante_id):
 @requires_auth("create:pedidos")
 def crear_pedido(payload, restaurante_id):
     restaurante = db.get_or_404(Restaurante, restaurante_id)
-    # Solo se reciben ids de platos y cantidades; NUNCA se aceptan precios ni totales.
     ids = request.form.getlist("plato_id")
     cantidades = request.form.getlist("cantidad")
     if not ids or len(ids) != len(cantidades):
@@ -49,8 +48,6 @@ def crear_pedido(payload, restaurante_id):
 
     if not cantidades_por_plato:
         abort(400, "Selecciona al menos un plato con cantidad positiva.")
-
-    # Verificar todos los datos antes de insertar una fila.
     lineas = []
     total = Decimal("0.00")
     for plato_id, cantidad in cantidades_por_plato.items():
@@ -67,15 +64,15 @@ def crear_pedido(payload, restaurante_id):
         pedido = Pedido(cliente=payload["sub"], restaurante_id=restaurante.id,
                         estado=Pedido.PENDIENTE, total=total)
         db.session.add(pedido)
-        db.session.flush()  # Obtiene el id; todavía no confirma nada.
+        db.session.flush()  
         for plato, cantidad, precio in lineas:
             db.session.add(ItemPedido(pedido_id=pedido.id, plato_id=plato.id,
                                       cantidad=cantidad, precio_unitario=precio))
-        db.session.commit()  # Todas las filas se confirman juntas.
+        db.session.commit() 
     except SQLAlchemyError:
-        db.session.rollback()  # Nada queda a medias.
+        db.session.rollback()  
         raise
-    # Para JWT local devolvemos JSON, sin redirección.
+   
     if payload["sub"].startswith("local:"):
         return jsonify({
             "success": True,
@@ -84,7 +81,6 @@ def crear_pedido(payload, restaurante_id):
             "url": url_for("carta.ver_pedido", pedido_id=pedido.id)
         }), 201
 
-    # Auth0 mantiene el comportamiento original.
     flash("Pedido creado correctamente.", "success")
     return redirect(
         url_for("carta.ver_pedido", pedido_id=pedido.id),
@@ -125,7 +121,7 @@ def mis_pedidos_local():
     return render_template("carta/mis_pedidos_local.html")
 
 def pedido_del_cliente(pedido_id, sub):
-    # 404 evita revelar la existencia de pedidos de otros clientes.
+    
     pedido = Pedido.query.filter_by(id=pedido_id, cliente=sub).first()
     if pedido is None:
         abort(404)
@@ -160,7 +156,6 @@ def ver_pedido(payload, pedido_id):
             }
         })
 
-    # Auth0 conserva su página tradicional.
     return render_template("carta/pedido.html", pedido=pedido)
 @bp.get("/mis-pedidos-local/<int:pedido_id>")
 def detalle_pedido_local(pedido_id):
@@ -173,7 +168,7 @@ def detalle_pedido_local(pedido_id):
 @requires_auth("read:mis-pedidos")
 def cancelar(payload, pedido_id):
     pedido_del_cliente(pedido_id, payload["sub"])
-    # Actualización condicional: solo cancela si todavía está pendiente.
+    
     try:
         modificados = Pedido.query.filter_by(id=pedido_id, cliente=payload["sub"],
                                             estado=Pedido.PENDIENTE).update(
@@ -207,7 +202,7 @@ def restaurante_del_cocinero(payload):
     sub = payload["sub"]
 
     if sub.startswith("local:"):
-        # Identidad local verificada previamente por requires_auth.
+        
         try:
             cuenta_id = int(sub.split(":", 1)[1])
         except ValueError:
@@ -226,7 +221,7 @@ def restaurante_del_cocinero(payload):
         )
 
     else:
-        # Se conserva la identificación original mediante Auth0.
+       
         empleado = (
             Empleado.query
             .join(Usuario, Empleado.usuario_id == Usuario.id)
@@ -269,7 +264,6 @@ def cocina(payload):
 
     pedidos = pedidos_query.order_by(Pedido.fecha).all()
 
-    # Respuesta para usuarios JWT locales
     if payload["sub"].startswith("local:"):
         return jsonify({
             "pedidos": [
@@ -290,7 +284,6 @@ def cocina(payload):
             "puede_avanzar": puede_avanzar
         }), 200
 
-    # Se conserva el comportamiento de Auth0
     return render_template(
         "carta/cocina.html",
         pedidos=pedidos,
@@ -309,8 +302,7 @@ SIGUIENTE = {
 @requires_auth("update:pedidos")
 def avanzar(payload, pedido_id):
     restaurante_id = restaurante_del_cocinero(payload)
-    # El filtro por restaurante es obligatorio en la consulta Y en el UPDATE.
-    # Un ID de otro restaurante (o inexistente) responde 404.
+   
     pedido = Pedido.query.filter_by(id=pedido_id, restaurante_id=restaurante_id).first_or_404()
     anterior = pedido.estado
     siguiente = SIGUIENTE.get(anterior)
@@ -339,6 +331,5 @@ def avanzar(payload, pedido_id):
     return redirect(url_for("carta.cocina"), code=303)
 @bp.get("/cocina-local")
 def cocina_local():
-    # Solo entrega la interfaz.
-    # Los pedidos se obtienen desde /cocina, que exige autenticación.
+    
     return render_template("carta/cocina_local.html")

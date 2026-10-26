@@ -2,7 +2,6 @@ const TOKEN_KEY = "access_token";
 const STATE_KEY = "oauth_state";
 const $ = (id) => document.getElementById(id);
 
-// --- Token ---
 function getToken() {
     return sessionStorage.getItem(TOKEN_KEY);
 }
@@ -28,12 +27,10 @@ function can(permission) {
     return Boolean(user) && Array.isArray(user.permissions) && user.permissions.includes(permission);
 }
 
-// --- Login con Auth0 (flujo implícito del curso) ---
 function redirectUri() {
     return `${window.location.origin}/`;
 }
 
-// crypto.randomUUID solo existe en HTTPS o localhost; getRandomValues funciona siempre
 function randomState() {
     const bytes = new Uint8Array(16);
     crypto.getRandomValues(bytes);
@@ -53,12 +50,10 @@ function loginUrl() {
     return `https://${window.AUTH0.domain}/authorize?${params}`;
 }
 
-// Al volver de Auth0 el token llega en el fragmento de la URL (#access_token=...)
 function readTokenFromFragment() {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (!params.has("access_token") && !params.has("error")) return;
 
-    // Quitar el token de la barra de direcciones y del historial
     history.replaceState(null, "", window.location.pathname);
 
     const expected = sessionStorage.getItem(STATE_KEY);
@@ -73,7 +68,6 @@ function readTokenFromFragment() {
     }
 }
 
-// --- Peticiones a la API ---
 async function api(path, { method = "GET", body = null } = {}) {
     const headers = { "Content-Type": "application/json" };
     const token = getToken();
@@ -87,14 +81,13 @@ async function api(path, { method = "GET", body = null } = {}) {
     const data = await res.json().catch(() => ({}));
 
     if (res.status === 401 && token) {
-        setToken(null); // expirado o inválido: vuelta al login
+        setToken(null); 
         render();
     }
     if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
     return data;
 }
 
-// --- Mensajes y vistas ---
 function show(message, kind = "error") {
     const box = $("message");
     box.textContent = message;
@@ -131,7 +124,6 @@ async function loadTodos() {
     $("empty").hidden = todos.length === 0;
 }
 
-// --- Interfaz de tareas ---
 function button(text, className, action) {
     const b = document.createElement("button");
     b.type = "button";
@@ -180,7 +172,6 @@ function todoItem(todo) {
     return li;
 }
 
-// --- Eventos ---
 $("login").addEventListener("click", () => {
     window.location.assign(loginUrl());
 });
@@ -198,7 +189,7 @@ $("create-form").addEventListener("submit", (event) => {
     });
 });
 
-// Borra el token y cierra también la sesión de Auth0; si no, "Sign in" entraría sin pedir contraseña
+
 $("logout").addEventListener("click", () => {
     setToken(null);
     const params = new URLSearchParams({ client_id: window.AUTH0.clientId, returnTo: redirectUri() });
