@@ -6,7 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from .auth import requires_auth
 from .extensions import db
-from .models import Empleado, ItemPedido, Pedido, Plato, Restaurante, Usuario
+from .models import Empleado, ItemPedido, Pedido, Plato, Restaurante, Usuario, CuentaLocal
 
 bp = Blueprint("carta", __name__)
 
@@ -196,17 +196,54 @@ def cancelar(payload, pedido_id):
 
 
 def restaurante_del_cocinero(payload):
-    """Usa el sub validado del JWT, nunca IDs o roles enviados en formularios.
-
-    Un cocinero sin perfil de empleado activo y asignado no puede operar.
     """
-    empleado = (
-        Empleado.query.join(Usuario, Empleado.usuario_id == Usuario.id)
-        .filter(Usuario.auth0_sub == payload["sub"], Empleado.activo.is_(True))
-        .first()
-    )
-    if empleado is None:
-        abort(403, "No tienes un restaurante de cocina asignado o tu perfil está inactivo.")
+    Obtiene el restaurante del empleado autenticado.
+
+    Auth0: busca al empleado mediante auth0_sub.
+    JWT local: busca al empleado mediante CuentaLocal -> Usuario.
+
+    Solo permite empleados activos con restaurante asignado.
+    """
+    sub = payload["sub"]
+
+    if sub.startswith("local:"):
+        # Identidad local verificada previamente por requires_auth.
+        try:
+            cuenta_id = int(sub.split(":", 1)[1])
+        except ValueError:
+            abort(403, "Identificador de cuenta local inválido.")
+
+        empleado = (
+            Empleado.query
+            .join(Usuario, Empleado.usuario_id == Usuario.id)
+            .join(CuentaLocal, CuentaLocal.usuario_id == Usuario.id)
+            .filter(
+                CuentaLocal.id == cuenta_id,
+                CuentaLocal.rol == "cocina",
+                Empleado.activo.is_(True),
+            )
+            .first()
+        )
+
+    else:
+        # Se conserva la identificación original mediante Auth0.
+        empleado = (
+            Empleado.query
+            .join(Usuario, Empleado.usuario_id == Usuario.id)
+            .filter(
+                Usuario.auth0_sub == sub,
+                Empleado.activo.is_(True),
+            )
+            .first()
+        )
+
+    if empleado is None or empleado.restaurante_id is None:
+        abort(
+            403,
+            "No tienes un restaurante de cocina asignado "
+            "o tu perfil de empleado está inactivo."
+        )
+
     return empleado.restaurante_id
 
 
@@ -214,16 +251,51 @@ def restaurante_del_cocinero(payload):
 @requires_auth("read:pedidos")
 def cocina(payload):
     puede_avanzar = "update:pedidos" in payload["permissions"]
-    pedidos_query = Pedido.query.filter(Pedido.estado.in_([
-        Pedido.PENDIENTE, Pedido.EN_PREPARACION, Pedido.LISTO
-    ]))
+
+    pedidos_query = Pedido.query.filter(
+        Pedido.estado.in_([
+            Pedido.PENDIENTE,
+            Pedido.EN_PREPARACION,
+            Pedido.LISTO
+        ])
+    )
+
     if puede_avanzar:
-        # Cocina tiene update:pedidos, por lo que necesita asociación activa.
-        pedidos_query = pedidos_query.filter_by(restaurante_id=restaurante_del_cocinero(payload))
-    # Admin (solo read:pedidos) conserva la vista general requerida por el examen.
+        restaurante_id = restaurante_del_cocinero(payload)
+
+        pedidos_query = pedidos_query.filter_by(
+            restaurante_id=restaurante_id
+        )
+
     pedidos = pedidos_query.order_by(Pedido.fecha).all()
-    return render_template("carta/cocina.html", pedidos=pedidos,
-                           puede_avanzar=puede_avanzar)
+
+    # Respuesta para usuarios JWT locales
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "pedidos": [
+                {
+                    "id": pedido.id,
+                    "restaurante": pedido.restaurante.nombre,
+                    "estado": pedido.estado,
+                    "items": [
+                        {
+                            "plato": item.plato.nombre,
+                            "cantidad": item.cantidad
+                        }
+                        for item in pedido.items
+                    ]
+                }
+                for pedido in pedidos
+            ],
+            "puede_avanzar": puede_avanzar
+        }), 200
+
+    # Se conserva el comportamiento de Auth0
+    return render_template(
+        "carta/cocina.html",
+        pedidos=pedidos,
+        puede_avanzar=puede_avanzar
+    )
 
 
 SIGUIENTE = {
@@ -255,4 +327,18 @@ def avanzar(payload, pedido_id):
     except SQLAlchemyError:
         db.session.rollback()
         raise
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "success": True,
+            "message": "Estado del pedido actualizado correctamente.",
+            "pedido_id": pedido_id,
+            "estado_anterior": anterior,
+            "estado_actual": siguiente
+        }), 200
+
     return redirect(url_for("carta.cocina"), code=303)
+@bp.get("/cocina-local")
+def cocina_local():
+    # Solo entrega la interfaz.
+    # Los pedidos se obtienen desde /cocina, que exige autenticación.
+    return render_template("carta/cocina_local.html")

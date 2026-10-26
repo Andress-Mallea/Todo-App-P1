@@ -204,6 +204,13 @@ class PromocionPlato(models.Model):
     def __str__(self):
         return f"{self.promocion} - {self.plato}"
 class CuentaLocal(models.Model):
+    usuario = models.OneToOneField(
+        "Usuario",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cuenta_local",
+    )
     username = models.CharField(
         max_length=80,
         unique=True,
@@ -215,6 +222,20 @@ class CuentaLocal(models.Model):
     fecha_registro = models.DateTimeField(
         default=timezone.now
     )
+    ROL_CLIENTE = "cliente"
+    ROL_COCINA = "cocina"
+    ROL_ADMIN = "admin"
 
+    ROLES = [
+        (ROL_CLIENTE, "Cliente"),
+        (ROL_COCINA, "Cocina"),
+        (ROL_ADMIN, "Administrador"),
+    ]
+
+    rol = models.CharField(
+        max_length=20,
+        choices=ROLES,
+        default=ROL_CLIENTE,
+    )
     def __str__(self):
         return self.username

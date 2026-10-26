@@ -1,7 +1,7 @@
 """CRUD de la carta para el rol admin de Auth0 (R2). Django administra el esquema."""
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from .auth import requires_auth
@@ -57,10 +57,54 @@ def _guardar():
 @bp.get('/')
 @requires_auth('write:carta')
 def indice(payload):
-    return render_template('carta_admin/index.html',
-                           restaurantes=Restaurante.query.order_by(Restaurante.nombre).all(),
-                           platos=Plato.query.order_by(Plato.nombre).all(),
-                           puede_eliminar='delete:carta' in payload['permissions'])
+
+    restaurantes = (
+        Restaurante.query
+        .order_by(Restaurante.nombre)
+        .all()
+    )
+
+    platos = (
+        Plato.query
+        .order_by(Plato.nombre)
+        .all()
+    )
+
+    puede_eliminar = 'delete:carta' in payload['permissions']
+
+    # Administrador autenticado mediante JWT local
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "restaurantes": [
+                {
+                    "id": r.id,
+                    "nombre": r.nombre,
+                    "descripcion": r.descripcion
+                }
+                for r in restaurantes
+            ],
+            "platos": [
+                {
+                    "id": p.id,
+                    "nombre": p.nombre,
+                    "descripcion": p.descripcion,
+                    "precio": str(p.precio),
+                    "disponible": p.disponible,
+                    "restaurante_id": p.restaurante_id,
+                    "restaurante": p.restaurante.nombre
+                }
+                for p in platos
+            ],
+            "puede_eliminar": puede_eliminar
+        }), 200
+
+    # Administrador autenticado mediante Auth0
+    return render_template(
+        'carta_admin/index.html',
+        restaurantes=restaurantes,
+        platos=platos,
+        puede_eliminar=puede_eliminar
+    )
 
 
 @bp.route('/restaurantes/nuevo', methods=['GET', 'POST'])

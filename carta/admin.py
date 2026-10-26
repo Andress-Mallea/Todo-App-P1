@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.forms.models import BaseInlineFormSet
-
+from .models import CuentaLocal
 from .models import (
     Categoria, Cliente, Empleado, ItemPedido, Mesa, Pedido, Plato,
     Promocion, PromocionPlato, Restaurante, Usuario,
@@ -149,3 +149,44 @@ class PromocionPlatoAdmin(admin.ModelAdmin):
     list_filter = ("promocion__restaurante",)
     search_fields = ("promocion__nombre", "plato__nombre")
     list_select_related = ("promocion", "plato")
+@admin.register(CuentaLocal)
+class CuentaLocalAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "username",
+        "rol",
+        "fecha_registro",
+    )
+
+    list_filter = ("rol",)
+    search_fields = ("username",)
+    ordering = ("-fecha_registro",)
+
+    # No mostrar ni permitir modificar directamente el hash.
+    exclude = ("password_hash",)
+
+    readonly_fields = (
+        "username",
+        "fecha_registro",
+    )
+    fields = (
+    "username",
+    "rol",
+    "usuario",
+    "fecha_registro",
+    )
+
+    autocomplete_fields = ("usuario",)
+
+    list_select_related = ("usuario",)
+    # Las cuentas se crean desde el registro JWT,
+    # no desde este formulario administrativo.
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    # Solo el superusuario puede modificar roles locales.
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_active and request.user.is_superuser

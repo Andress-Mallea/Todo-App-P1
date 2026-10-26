@@ -5,7 +5,7 @@
 <style>body{font-family:Arial,sans-serif;max-width:960px;margin:2rem auto;padding:0 1rem}nav{display:flex;gap:1rem;align-items:center;flex-wrap:wrap}main{margin-top:2rem}input[type=number]{max-width:5rem}.error{color:#b91c1c}</style>
 </head>
 <script>
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded",async  () => {
 
     const token = sessionStorage.getItem("local_jwt_token");
 
@@ -36,7 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
         nombre.textContent = payload.username || "Cliente";
         nombre.hidden = false;
 
-        pedidos.hidden = false;
+        pedidos.hidden = true;
         salir.hidden = false;
         login.hidden = true;
 
@@ -44,6 +44,29 @@ document.addEventListener("DOMContentLoaded", () => {
             sessionStorage.removeItem("local_jwt_token");
             window.location.href = "/restaurantes";
         });
+        const enlaceCocina = document.getElementById("enlace-cocina-local");
+
+    if (enlaceCocina) {
+        enlaceCocina.style.display = "none";
+
+        try {
+            const respuesta = await fetch("/cocina", {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+
+            if (respuesta.ok) {
+                const datos = await respuesta.json();
+
+                if (datos.puede_avanzar) {
+                    enlaceCocina.style.display = "";
+                }
+            }
+        } catch (error) {
+            console.error("No se pudo comprobar el acceso a cocina:", error);
+        }
+    }
 
     } catch (error) {
         sessionStorage.removeItem("local_jwt_token");
@@ -84,7 +107,11 @@ document.addEventListener("DOMContentLoaded", () => {
            hidden>
             Mis pedidos
         </a>
-
+        <a id="enlace-cocina-local"
+        href="{{ url_for('carta.cocina_local') }}"
+        style="display: none;">
+            Cocina
+        </a>
         <button type="button" id="salir-local" hidden>
             Salir
         </button>

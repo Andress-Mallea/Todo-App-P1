@@ -7,6 +7,21 @@ from .tokens import verify_decode_jwt
 from .local_tokens import verify_local_jwt
 from app.models import CuentaLocal
 from app.extensions import db
+PERMISOS_POR_ROL = {
+    "cliente": [
+        "create:pedidos",
+        "read:mis-pedidos",
+    ],
+    "cocina": [
+        "read:pedidos",
+        "update:pedidos",
+    ],
+    "admin": [
+        "read:pedidos",
+        "write:carta",
+        "delete:carta",
+    ],
+}
 def get_token_auth_header():
     """Devuelve el JWT de 'Authorization: Bearer <token>'."""
     auth = request.headers.get("Authorization", "").strip()
@@ -87,10 +102,9 @@ def requires_auth(permission=""):
 
                 # Los permisos locales son asignados por el servidor.
                 # No aceptamos permisos inventados por el cliente.
-                payload["permissions"] = [
-                    "create:pedidos",
-                    "read:mis-pedidos"
-                ]
+                rol = usuario.rol
+
+                payload["permissions"] = PERMISOS_POR_ROL.get(rol, [])
 
             else:
                 # Login Auth0: conserva el mecanismo original.

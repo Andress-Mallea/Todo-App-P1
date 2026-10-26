@@ -121,10 +121,16 @@ class Cliente(db.Model):
     
 class CuentaLocal(db.Model):
     __tablename__ = "carta_cuentalocal"
-
+    
     id = db.Column(
         db.BigInteger,
         primary_key=True
+    )
+    usuario_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("carta_usuario.id", ondelete="SET NULL"),
+        unique=True,
+        nullable=True
     )
     username = db.Column(
         db.String(80),
@@ -143,7 +149,15 @@ class CuentaLocal(db.Model):
         nullable=False,
         default=utcnow
     )
+    ROL_CLIENTE = "cliente"
+    ROL_COCINA = "cocina"
+    ROL_ADMIN = "admin"
 
+    rol = db.Column(
+        db.String(20),
+        nullable=False,
+        default=ROL_CLIENTE
+    )
     def set_password(self, password):
         from werkzeug.security import generate_password_hash
         self.password_hash = generate_password_hash(password)
