@@ -1,210 +1,312 @@
 # La Carta 2.0 — Examen práctico ISW-233
 
-Sistema web de restaurantes y pedidos. **Flask** implementa la carta, los pedidos y el panel de cocina; **Django Admin** gestiona datos internos y es el único responsable del esquema de base de datos. Ambos comparten **PostgreSQL 16** y se publican en **AWS EC2 Ubuntu**, mediante **Docker Compose, Gunicorn, Nginx y HTTPS**. Los usuarios de Flask se autentican con **Auth0**.
+Sistema web de gestión de restaurantes, carta gastronómica, pedidos y cocina. Integra **dos mecanismos de autenticación dentro de la misma aplicación Flask**: **Auth0** y **cuentas locales con JWT**. Incluye **Django Admin** para administrar datos y perfiles, **PostgreSQL 16** como base compartida, y despliegue en **AWS EC2 Ubuntu** con Docker Compose, Gunicorn, Nginx y HTTPS.
 
-## 1. URLs públicas
+> **Entorno de demostración académica.** El comando de poblado permite crear un conjunto objetivo de 10.000 filas. Las cuentas de demostración con roles privilegiados y sus contraseñas solo deben habilitarse en un entorno controlado.
+
+## 1. Direcciones de acceso
 
 | Servicio | Dirección |
 |---|---|
-| Carta pública de Flask | https://cartadragonpai.chickenkiller.com/restaurantes |
-| Cocina (Auth0, rol `cocina`) | https://cartadragonpai.chickenkiller.com/cocina |
-| Pedidos del cliente | https://cartadragonpai.chickenkiller.com/pedidos |
-| Django Admin (cuenta de Django) | https://admindragonpai.chickenkiller.com/admin/ |
+| Catálogo público | https://cartadragonpai.chickenkiller.com/restaurantes |
+| Inicio de sesión unificado | https://cartadragonpai.chickenkiller.com/auth/local/entrar |
+| Cocina JWT local | https://cartadragonpai.chickenkiller.com/cocina-local |
+| Administración JWT local | https://cartadragonpai.chickenkiller.com/administrar/local |
+| Django Admin | https://admindragonpai.chickenkiller.com/admin/ |
 
-Los dominios se administran con FreeDNS. La IPv4 de EC2 puede cambiar al reiniciar el laboratorio; en ese caso se actualizan **ambos registros A** y se verifica su resolución antes de emitir certificados. Desarrollo local: `http://localhost/restaurantes` y `http://localhost/admin/`.
+Las rutas `/cocina` y `/administrar/` sirven HTML cuando la petición está autenticada por Auth0 y JSON para un JWT local validado; por ello, las páginas `/cocina-local` y `/administrar/local` hacen las peticiones protegidas desde JavaScript. El dominio principal y el subdominio de Django se administran mediante FreeDNS. En desarrollo local se utiliza `http://localhost`.
 
-## 2. Arquitectura real
+## 2. Arquitectura
 
 ```mermaid
 flowchart TD
-    B["Navegador"] -->|"HTTP :80 → HTTPS :443"| N["Nginx · contenedor nginx · EC2"]
-    B <-->|"Authorization Code / login"| A["Auth0 · RBAC / JWT RS256"]
-    N -->|"cartadragonpai.chickenkiller.com"| F["Flask + Gunicorn · web:8000"]
-    N -->|"admindragonpai.chickenkiller.com"| D["Django + Gunicorn · admin_django:8080"]
-    N -->|"/admin-static/"| S[("Volumen static_files")]
-    F -->|"SQLAlchemy"| P[("PostgreSQL 16 · db:5432")]
-    D -->|"ORM Django"| P
-    M["migrate · migrations + collectstatic"] --> P
-    M --> S
-    P --- V[("Volumen datos_pg")]
-    F -. "Valida firma JWT con JWKS" .-> A
+    B[Navegador] --> N[Nginx · HTTP/HTTPS]
+    B <-->|Login Auth0| A[Auth0 · RBAC · RS256/JWKS]
+    B -->|Formulario usuario/contraseña| L[Login JWT local · HS256]
+    N --> F[Flask + Gunicorn · web:8000]
+    N --> D[Django Admin + Gunicorn · admin_django:8080]
+    L --> F
+    F -->|SQLAlchemy| P[(PostgreSQL 16)]
+    D -->|Django ORM y migraciones| P
+    M[migrate · migrate + collectstatic + seed opcional] --> P
+    P --- V[(Volumen datos_pg)]
 ```
 
-- **Puertos públicos:** solo `80` (redirección) y `443` (HTTPS). SSH `22` se limita desde el Security Group de EC2.
-- **Puertos internos:** `web:8000`, `admin_django:8080`, `db:5432`. No se publica PostgreSQL hacia Internet.
-- `migrate` espera a que `db` esté **healthy**; `web` y `admin_django` esperan a que `migrate` termine con éxito.
-- Nginx comparte el volumen de archivos estáticos producido por `collectstatic` y monta los certificados de Let's Encrypt desde el host.
+Servicios Compose: `db`, `migrate`, `web`, `admin_django` y `nginx`.
 
-## 3. Modelos y reglas de negocio (R1)
+- Django define y migra el esquema mediante `carta/models.py` y `carta/migrations/`; Flask consulta las mismas tablas mediante `app/models.py` y SQLAlchemy. **No usar `db.create_all()` ni Flask-Migrate para modificar este esquema.**
+- Nginx publica los puertos 80 y 443, con redirección a HTTPS en producción; PostgreSQL solo es accesible por la red interna de Docker.
+- `migrate` espera a PostgreSQL saludable, aplica migraciones, recopila estáticos, prepara el superusuario Django y ejecuta el poblado si se habilita. `web` y `admin_django` esperan a que finalice correctamente.
+- Los volúmenes `datos_pg` y `static_files` persisten entre recreaciones normales de contenedores. **No ejecutar `docker compose down -v` en una base con datos.**
 
-Los modelos `Restaurante`, `Plato`, `Pedido`, `ItemPedido`, `Usuario`, `Cliente`, `Empleado`, `Categoria`, `Mesa`, `Promocion` y `PromocionPlato` están en `carta/models.py`. Las migraciones Django crean las tablas `carta_*`; `app/models.py` las mapea en SQLAlchemy para Flask.
+## 3. Autenticación y roles
 
-- En `app/carta_routes.py`, `crear_pedido` identifica al cliente por el **`sub` del JWT validado**; nunca por un identificador suministrado por el formulario.
-- Acepta identificadores de platos y cantidades, valida su existencia, disponibilidad y pertenencia al restaurante, y calcula el total desde los precios actuales de la base.
-- Copia el precio de cada plato a `ItemPedido.precio_unitario` para conservar el **precio histórico**.
-- Usa `db.session.flush()`, inserta ítems y confirma con **un solo `commit()`**; ante un error SQL realiza `rollback()`.
-- La base tiene `CHECK` para estado válido, cantidad positiva, precios y totales no negativos. Se comprobaron con `pg_constraint` en PostgreSQL local.
-- El cliente puede cancelar **solo un pedido pendiente** mediante `cancelar`; la cocina avanza mediante `avanzar` según el mapa `SIGUIENTE`: `pendiente → en_preparacion → listo → entregado`.
-- Un cliente solo ve pedidos propios; un intento sobre un pedido ajeno devuelve **404**. Los formularios POST exitosos redirigen con **303** (Post/Redirect/Get).
+La misma interfaz de La Carta 2.0 admite dos entradas:
 
-## 4. Auth0 y autorización (R2)
+**Auth0:** inicio de sesión mediante OAuth2/OIDC; tokens de acceso RS256 verificados con JWKS. La identidad autenticada se conserva en la sesión Flask y las páginas originales siguen funcionando.
 
-Auth0 proporciona una **Regular Web Application** con Authorization Code y una API con **Enable RBAC** y **Add Permissions in the Access Token**. Flask usa Authlib, verifica los access tokens firmados con RS256 mediante JWKS y conserva el token en una sesión protegida por cookie.
+**JWT local:** registro e inicio de sesión con `username` y contraseña. La contraseña se conserva como **hash Werkzeug**, nunca en texto plano. Flask firma JWT HS256 con `LOCAL_JWT_SECRET_KEY`, expiración e issuer configurables. El navegador conserva el JWT en `sessionStorage` y JavaScript lo envía mediante `Authorization: Bearer <token>`; las navegaciones normales no añaden ese encabezado automáticamente.
 
 | Rol | Permisos |
 |---|---|
-| `cliente` | `create:pedidos`, `read:mis-pedidos` |
-| `cocina` | `read:pedidos`, `update:pedidos` |
-| `admin` | `read:pedidos`, `write:carta`, `delete:carta` |
+| Cliente (`cliente`) | `create:pedidos`, `read:mis-pedidos` |
+| Cocina (`cocina`) | `read:pedidos`, `update:pedidos` |
+| Administrador (`admin`) | `read:pedidos`, `write:carta`, `delete:carta` |
 
-Los decoradores `@requires_auth` validan la sesión y el permiso en **cada ruta protegida**, no solamente en la interfaz. El `callback` sincroniza `Usuario` y el perfil `Cliente` o `Empleado` en PostgreSQL, sin guardar contraseñas Auth0. Los empleados nuevos pueden permanecer **inactivos y sin restaurante** hasta que Django Admin los asigne y active. Los usuarios del panel Django se autentican con las cuentas propias de Django.
+Para las cuentas locales, los permisos se obtienen del **rol almacenado en PostgreSQL**, no de un rol enviado por el navegador. El registro público crea exclusivamente cuentas `cliente`; los cambios a `cocina` o `admin` se efectúan desde Django Admin por un superusuario autorizado. Los decoradores `@requires_auth` verifican identidad y permiso en las rutas protegidas. Un cliente autenticado que envía JWT para acceder a cocina o administración recibe `403`.
 
-Validaciones realizadas en local: sin sesión `/pedidos` y `/cocina` devuelven `401`; un cliente en `/cocina` recibe `403`; un pedido ajeno devuelve `404`; el cocinero asignado puede avanzar un pedido de su restaurante.
+### Relación de perfiles
 
-## 5. Backoffice Django (R3)
+- `Usuario`: datos personales e identificador interno o `auth0_sub`.
+- `CuentaLocal`: `username`, `password_hash`, `rol` y vínculo opcional uno a uno con `Usuario`.
+- `Cliente`: perfil de cliente relacionado uno a uno con `Usuario`.
+- `Empleado`: perfil vinculado a `Usuario`, con restaurante asignado y estado activo.
 
-`carta/admin.py` registra restaurantes, platos, pedidos, ítems, perfiles y otras entidades comerciales. En `PedidoAdmin` existen filtros por estado/restaurante, búsqueda por cliente, `ItemPedidoInline` y campos históricos de solo lectura (`total`, `fecha` y `precio_unitario`). El superusuario puede corregir el estado desde el administrador.
+Para operar en cocina con JWT, no basta poseer el rol: el servidor comprueba también la relación `CuentaLocal → Usuario → Empleado`, su activación y el restaurante. La consulta y avance de pedidos están restringidos al restaurante asignado. Para Auth0 se conserva la identificación mediante `Usuario.auth0_sub`. **Django Admin tiene su propia autenticación**, diferente del login de Flask.
 
-## 6. Instalación local desde cero (R4)
+## 4. Funcionalidades y reglas de negocio
 
-**Requisitos:** Git, Docker Desktop con el complemento Docker Compose, configuración Auth0 y el archivo privado de variables de entorno.
+### Clientes
+
+- Consulta de restaurantes y platos públicos.
+- Creación de pedidos solo con platos existentes, disponibles y pertenecientes al restaurante seleccionado.
+- Validación de cantidades y cálculo del total en el servidor; el precio nunca se acepta del navegador como fuente de verdad.
+- Conservación del precio unitario histórico en `ItemPedido`.
+- Consulta de pedidos propios y de sus ítems; cancelación únicamente cuando el pedido está `pendiente`.
+- Los intentos de acceder a pedidos ajenos devuelven `404` para no revelar su existencia.
+
+### Cocina
+
+- Cola de pedidos activos del restaurante asignado.
+- Transiciones permitidas: `pendiente → en_preparacion → listo → entregado`.
+- Actualización condicional de estado para evitar sobrescribir cambios concurrentes; las operaciones de restaurantes ajenos no están autorizadas.
+
+### Administración de la carta
+
+- Crear, consultar, editar y eliminar restaurantes y platos.
+- Validaciones de nombre, precio, existencia de restaurante y disponibilidad.
+- Protección de eliminación cuando existen relaciones históricas que impiden borrar registros.
+- El administrador Auth0 conserva formularios HTML y redirecciones; el administrador JWT utiliza el panel JavaScript con respuestas JSON.
+
+Los controles relevantes se aplican en Flask y PostgreSQL, no únicamente mediante ocultamiento de botones.
+
+## 5. Estructura principal
+
+```text
+app/
+  auth/                        # Auth0 y JWT local
+  templates/
+    base.html                  # Menú según autenticación y permisos
+    carta/                     # Catálogo, pedidos y cocina
+    carta_admin/               # Administración HTML y panel JWT
+    auth/                      # Inicio de sesión unificado
+  static/js/                   # Fetch con JWT para vistas locales
+  carta_routes.py             # Pedidos y cocina
+  carta_admin_routes.py       # CRUD de la carta
+  models.py                    # Modelos SQLAlchemy
+carta/
+  models.py                    # Modelos Django
+  admin.py                     # Administración de modelos y roles
+  migrations/                  # Migraciones Django, incluidas 0004–0006
+  management/commands/seed_demo.py
+config/                        # Configuración Django
+docker-compose.yml             # Entorno base/local
+docker-compose.prod.yml        # Ajustes de producción
+nginx/dev.conf
+nginx/prod.conf
+```
+
+## 6. Desarrollo local (Windows + Docker Desktop)
+
+Requisitos: Git, Docker Desktop y Docker Compose. Clonar la **rama que contenga los cambios JWT** (en el despliegue actual se utilizó `recuperatorio`, si continúa siendo la rama de trabajo):
 
 ```powershell
-git clone https://github.com/Andress-Mallea/Todo-App-P1.git
+git clone -b recuperatorio --single-branch https://github.com/Andress-Mallea/Todo-App-P1.git
 cd Todo-App-P1
 Copy-Item .env.example .env
-# Completar .env con valores propios; no utilizar secretos de ejemplo.
+# Completar .env con los secretos y parámetros propios.
 docker compose -f docker-compose.yml config --quiet
 docker compose -f docker-compose.yml up -d --build
 docker compose -f docker-compose.yml ps -a
 ```
 
-Variables mínimas de `.env`: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DJANGO_SECRET_KEY`, `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, `DJANGO_SUPERUSER_PASSWORD`, `SECRET_KEY`, `AUTH0_DOMAIN`, `AUTH0_AUDIENCE`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`. Las opciones Django de hosts/CSRF de producción se sobreescriben en `docker-compose.prod.yml`.
+Si `.env.example` no está disponible, crear manualmente un `.env` privado con las variables indicadas abajo. Si trabajas con otra rama, cambia `recuperatorio` por su nombre real.
 
-La base se inicializa en `db` y el servicio `migrate` ejecuta las migraciones y `collectstatic` **una sola vez por ejecución**, antes de arrancar las aplicaciones. Para comprobar migraciones:
+### Variables de entorno
 
-```powershell
-docker compose -f docker-compose.yml exec admin_django python manage.py showmigrations carta
+| Variable | Propósito |
+|---|---|
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Conexión PostgreSQL |
+| `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS` | Django |
+| `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, `DJANGO_SUPERUSER_PASSWORD` | Cuenta administrativa Django |
+| `SECRET_KEY` | Sesiones Flask |
+| `AUTH0_DOMAIN`, `AUTH0_AUDIENCE`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET` | Autenticación Auth0 |
+| `LOCAL_JWT_SECRET_KEY`, `LOCAL_JWT_EXPIRES_MINUTES`, `LOCAL_JWT_ISSUER` | JWT local |
+| `SEED_DEMO_ENABLED` | `1` para poblar, `0` para omitir |
+| `SEED_CLIENTE_PASSWORD`, `SEED_COCINA_PASSWORD`, `SEED_ADMIN_PASSWORD` | Credenciales iniciales privadas de las tres cuentas demo principales |
+
+El archivo `.env` **nunca se sube al repositorio**. Utilizar contraseñas diferentes, fuertes y no conocidas públicamente. Al iniciar PostgreSQL por primera vez, cambiar posteriormente las variables `POSTGRES_*` no cambia por sí solo las credenciales de una base ya inicializada.
+
+## 7. Poblado automático: 10.000 registros
+
+El comando Django `python manage.py seed_demo` se ejecuta automáticamente en el servicio `migrate` después de las migraciones si `SEED_DEMO_ENABLED=1`.
+
+| Tabla | Objetivo de filas de demostración |
+|---|---:|
+| Usuario | 1.501 |
+| CuentaLocal | 1.501 |
+| Cliente | 1.200 |
+| Empleado | 300 |
+| Restaurante | 20 |
+| Plato | 1.398 |
+| Categoria | 30 |
+| Mesa | 500 |
+| Promocion | 500 |
+| PromocionPlato | 1.000 |
+| Pedido | 900 |
+| ItemPedido | 1.150 |
+| **Total previsto por el seed** | **10.000** |
+
+El seed usa identificadores estables y `get_or_create()` para volver a ejecutarse sin duplicar sus filas. Preserva datos previos, incluidos los del poblado anterior. El **total real de la base puede superar 10.000** si existen registros creados por usuarios o pruebas. No debe interpretarse como un límite estricto sobre todas las filas de producción.
+
+Se crean cuentas de demostración de cliente, cocina y administrador con perfiles relacionados. Las tres contraseñas principales se configuran en el `.env`; las cuentas generadas restantes usan credenciales no publicadas. No habilitar este seed en producción abierta a usuarios reales.
+
+Verificar el arranque:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=100 migrate
+docker compose -f docker-compose.yml -f docker-compose.prod.yml ps -a
 ```
 
-No usar `docker compose down -v` sobre una base con datos: elimina los volúmenes.
+`migrate` debe terminar con código `0`. El seed no requiere ejecutar manualmente un comando dentro de EC2 cuando está habilitado en Compose.
 
-## 7. Producción desde cero en una nueva EC2 (R4/R5)
+## 8. Despliegue en una nueva AWS EC2 Ubuntu
 
-1. Crear EC2 Ubuntu con Security Group que permita TCP 80 y 443 desde Internet y 22 únicamente desde la IP del administrador. Registrar o actualizar los dominios FreeDNS para apuntar a la IPv4 pública actual.
-2. Conectarse mediante SSH/PuTTY e instalar dependencias:
+### 8.1 Preparación de la instancia
+
+1. Crear la instancia Ubuntu y configurar el Security Group: puertos TCP **80 y 443** públicos; **22** solo desde la IP administrativa.
+2. Instalar Git, Docker Engine y Docker Compose. Puede automatizarse con `scripts/preparar_ec2.sh` mediante **EC2 User Data** durante la creación de la instancia; el script debe pegarse como contenido Bash, sin contraseñas. Alternativamente, ejecutarlo manualmente con `sudo bash scripts/preparar_ec2.sh` si existe en el repositorio.
+3. Confirmar instalación:
+
+```bash
+sudo cloud-init status --wait
+docker --version
+docker compose version
+git --version
+```
+
+Si aparece `permission denied` al conectar con `/var/run/docker.sock`, usar `sudo docker compose` o añadir el usuario administrativo al grupo `docker` y renovar la sesión. **El grupo `docker` concede privilegios elevados.**
+
+### 8.2 Descargar el proyecto y preparar el entorno
+
+```bash
+mkdir -p ~/proyectos
+cd ~/proyectos
+git clone -b recuperatorio --single-branch https://github.com/Andress-Mallea/Todo-App-P1.git .
+# Colocar .env mediante un canal seguro y ajustar permisos:
+chmod 600 .env
+# Validar los archivos de Compose:
+docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+```
+
+> Si ya existe el repositorio en `~/proyectos`, **no lo clones de nuevo**: revisa la rama con `git branch --show-current` y actualiza mediante el flujo normal de Git. No publiques el `.env` ni contraseñas en logs o commits.
+
+Para EC2, `docker-compose.prod.yml` activa `SESSION_COOKIE_SECURE=1`, `DJANGO_DEBUG=False`, hosts y orígenes CSRF de Django, los certificados de Let's Encrypt y `nginx/prod.conf`.
+
+### 8.3 FreeDNS y certificados HTTPS
+
+Actualizar los registros `A` de ambos dominios para la IP pública de la instancia:
+
+```bash
+getent ahostsv4 cartadragonpai.chickenkiller.com
+getent ahostsv4 admindragonpai.chickenkiller.com
+```
+
+Con el puerto 80 disponible y los dominios resueltos correctamente:
 
 ```bash
 sudo apt update
-sudo apt install -y git curl ca-certificates docker.io docker-compose-v2 certbot dnsutils
-sudo systemctl enable --now docker
-sudo usermod -aG docker ubuntu
-newgrp docker
-```
-
-3. Clonar el repositorio y subir el `.env.production` **solo mediante SFTP/WinSCP**, sin almacenarlo en Git:
-
-```bash
-mkdir -p ~/proyectos && cd ~/proyectos
-git clone https://github.com/Andress-Mallea/Todo-App-P1.git
-cd Todo-App-P1
-cp .env.production .env
-sed -i 's/\r//g' .env
-chmod 600 .env
-unset POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB COMPOSE_FILE
-```
-
-4. Verificar DNS y arrancar **primero HTTP**:
-
-```bash
-dig +short cartadragonpai.chickenkiller.com
-dig +short admindragonpai.chickenkiller.com
-docker compose -f docker-compose.yml config --quiet
-docker compose -f docker-compose.yml up -d --build
-docker compose -f docker-compose.yml ps -a
-```
-
-5. Detener Nginx temporalmente y emitir certificado para **ambos** nombres:
-
-```bash
-docker compose -f docker-compose.yml stop nginx
+sudo apt install -y certbot
 sudo certbot certonly --standalone \
   -d cartadragonpai.chickenkiller.com \
   -d admindragonpai.chickenkiller.com \
   --cert-name cartadragonpai.chickenkiller.com
-sudo ls -l /etc/letsencrypt/live/cartadragonpai.chickenkiller.com/
 ```
 
-6. Activar producción; `nginx/prod.conf` sirve los dos dominios y redirige HTTP a HTTPS:
+Nginx espera `/etc/letsencrypt/live/cartadragonpai.chickenkiller.com/fullchain.pem` y `privkey.pem`. **Emitir los certificados antes de arrancar el Compose de producción**; Nginx no puede iniciar con archivos de certificado inexistentes. Comprobar la renovación automatizada de Certbot y planificar la recarga de Nginx tras renovar.
+
+### 8.4 Iniciar la aplicación
+
+En una base nueva de demostración, con `.env` correctamente configurado y `SEED_DEMO_ENABLED=1`:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --force-recreate
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.yml -f docker-compose.prod.yml ps -a
+docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=100 migrate
 ```
 
-7. Registrar en Auth0 los **Allowed Callback URLs**, **Allowed Logout URLs** y **Allowed Web Origins** HTTPS reales; la ruta de callback Flask es `/auth/callback`.
-8. Verificar:
+En un entorno con datos importantes realizar respaldo PostgreSQL antes de desplegar y considerar `SEED_DEMO_ENABLED=0`. Evitar `down -v` y restauraciones destructivas no planificadas.
+
+### 8.5 Comprobación posterior
 
 ```bash
 curl -I http://cartadragonpai.chickenkiller.com/restaurantes
-curl -I http://admindragonpai.chickenkiller.com/admin/
 curl -I https://cartadragonpai.chickenkiller.com/restaurantes
 curl -I https://admindragonpai.chickenkiller.com/admin/
-sudo systemctl is-enabled certbot.timer
-sudo systemctl is-active certbot.timer
 sudo certbot renew --dry-run
 ```
 
-En EC2 se verificó: HTTP devuelve `301` a HTTPS, Flask HTTPS `200`, Django Admin HTTPS `302` hacia su login, y **`certbot renew --dry-run` finalizó correctamente** para ambos dominios. Django tiene `SECURE_PROXY_SSL_HEADER` y `CSRF_TRUSTED_ORIGINS` configurados para el proxy.
+En Auth0 comprobar las URLs autorizadas de callback, logout y origen web para el dominio HTTPS real. Para una aplicación Flask con callback `/auth/callback`, la URL autorizada correspondiente es `https://cartadragonpai.chickenkiller.com/auth/callback`.
 
-## 8. Pruebas automáticas (R6)
+## 9. Pruebas y verificación funcional
 
-Pruebas en `tests/test_carta_r6.py` con fixtures de `tests/conftest.py`. La configuración de pruebas utiliza **SQLite en memoria** y sustituye la verificación externa de Auth0 por identidades controladas, por lo que no crea tablas en la base PostgreSQL real.
+Las pruebas existentes están en `tests/`. En desarrollo local:
 
 ```powershell
-# Local, con Docker en ejecución:
 docker compose -f docker-compose.yml exec web python -m pytest -q
 ```
 
-**Resultado local verificado:** `7 passed in 0.56s` (7/7). Las pruebas cubren: rechazo de pedido sin sesión, cliente sin permiso de cocina, precio adulterado ignorado, rechazo de plato no disponible, pedido ajeno `404`, rechazo de retroceso de estado y aislamiento por restaurante para cocina.
+El README anterior registraba **7 pruebas exitosas en una versión anterior**; ese resultado no se atribuye automáticamente a los cambios nuevos de JWT, roles y poblado. Ejecutar nuevamente las pruebas cuando se prepare la entrega final.
 
-**Limitación documentada:** al repetir pytest dentro del contenedor `web` en EC2, la sesión recolectó los siete casos pero quedó detenida al iniciar `test_01_sin_sesion_no_se_crea_pedido`; la ejecución final en EC2 **no fue validada**. Para la defensa, ejecutar `pytest -q` en la máquina local, tal como contempla la rúbrica.
+Comprobaciones manuales recomendadas:
 
-## 9. Población de datos para demostración
+- Cliente JWT: crear, listar, consultar y cancelar únicamente sus pedidos pendientes.
+- Cocina JWT: consultar y avanzar pedidos solamente del restaurante del empleado activo; otro restaurante debe permanecer fuera de alcance.
+- Administrador JWT: crear, editar y eliminar restaurantes y platos desde `/administrar/local`.
+- Cambiar roles en Django Admin y comprobar que el menú y los permisos reflejen el nuevo rol sin permitir autoasignación de privilegios.
+- Auth0: repetir login y funcionalidades de cliente, cocina y administrador.
+- Accesos denegados: JWT cliente a `/cocina` y `/administrar/` con encabezado Bearer devuelve `403`; sin JWT en navegación directa puede mostrarse la pantalla de login.
+- Verificar migraciones `0004`, `0005` y `0006`, población demo, vínculos de cuentas y comportamiento HTTPS.
 
-El comando Django `seed_demo` permite crear datos comerciales sin intervenir `Usuario`, `Cliente` ni `Empleado`, cuyos perfiles provienen de Auth0. Se preparó una versión con objetivo de **1.000 registros comerciales** para el requerimiento adicional del docente. **Confirmar los conteos después de ejecutar el comando y antes de afirmar que se alcanzaron los 1.000**. Si la base ya tiene registros reales, el total general puede ser mayor.
+## 10. Seguridad y decisiones técnicas
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec admin_django python manage.py seed_demo
-```
+1. **Una única fuente de esquema:** Django administra las migraciones; SQLAlchemy solo representa las tablas compartidas en Flask.
+2. **Autenticación separada de autorización:** Auth0 verifica tokens RS256; JWT local se firma y valida con HS256, y Flask consulta roles de PostgreSQL antes de autorizar.
+3. **Mínimo privilegio:** el registro público crea clientes; únicamente Django Admin autorizado puede promover cuentas locales a cocina o administrador.
+4. **Aislamiento:** los pedidos se vinculan con la identidad validada y cocina se limita por empleado activo/restaurante.
+5. **Integridad:** precios históricos, transacciones, validaciones y restricciones SQL evitan operaciones inconsistentes.
+6. **Secretos fuera de Git:** `.env`, contraseñas, llaves y material privado SSL no deben incorporarse al repositorio.
+7. **Demo controlada:** no exponer credenciales conocidas o privilegiadas en una instalación destinada al público; desactivar el poblado en entornos que no lo requieran.
 
-## 10. Cuatro decisiones justificadas exigidas por la rúbrica
+## 11. Limitaciones y mantenimiento
 
-**1. Django controla exclusivamente el esquema.** Los modelos y las migraciones están en `carta/`; Flask usa SQLAlchemy con nombres `__tablename__` compatibles (`carta_pedido`, `carta_itempedido`, etc.). Solo Django migra en producción, evitando dos sistemas que compitan por modificar tablas.
+- La EC2 de laboratorio es temporal: respaldar con `pg_dump` y conservar copias fuera de la instancia si los datos deben sobrevivir a su eliminación.
+- `sessionStorage` no envía JWT en navegaciones normales; las pantallas JWT usan JavaScript para llamar a los endpoints protegidos.
+- Los formularios JWT de administración utilizan algunas ventanas `prompt()`/`confirm()`; podrían sustituirse por formularios accesibles integrados.
+- El poblado crea datos de demostración, no sustituye un proceso seguro de altas de personal para un sistema comercial real.
+- La renovación de Certbot y recarga de Nginx deben comprobarse periódicamente.
+- No se implementan pagos ni notificaciones en tiempo real; quedan fuera del alcance actual.
 
-**2. Un pedido ajeno devuelve 404 en vez de 403.** La consulta en `pedido_del_cliente`, de `app/carta_routes.py`, filtra por ID y por `sub` del JWT. Así un tercero no puede confirmar si existe un pedido privado cuyo identificador conoce.
+## 12. Guía rápida para la defensa
 
-**3. Las reglas se aplican en el servidor.** `crear_pedido` valida los ítems, calcula total/precio congelado y utiliza transacción; `cancelar` admite exclusivamente el estado pendiente; `avanzar` aplica el mapa `SIGUIENTE` y limita la operación al restaurante del empleado. PostgreSQL refuerza las reglas con `CHECK`.
+1. Abrir el catálogo sin autenticación.
+2. Mostrar el login unificado: Auth0 o JWT local en la misma aplicación.
+3. Demostrar que un cliente JWT solo gestiona pedidos propios.
+4. Entrar con cocina JWT y avanzar un pedido de su restaurante.
+5. Entrar con administrador JWT y gestionar restaurantes y platos.
+6. Cambiar el rol y la vinculación a empleado en Django Admin.
+7. Explicar las diferencias entre autenticación (Auth0/JWT) y permisos consultados en servidor.
+8. Mostrar las migraciones Django, los contenedores Compose y el reporte del seed de 10.000 filas.
+9. Comprobar los dominios HTTPS y explicar la instalación automatizada mediante EC2 User Data.
 
-**4. Los secretos no están en Git.** Credenciales PostgreSQL/Auth0 y claves Flask/Django están en el `.env` privado de cada entorno, que se transmite por SFTP y se restringe con `chmod 600` en EC2. Solo usuarios con permisos de administración del servidor y el runtime Docker requieren acceso a estas variables.
-
-## 11. Limitaciones y posibles mejoras
-
-- El laboratorio AWS es **efímero**; para conservar datos entre instancias se necesita respaldo externo (por ejemplo `pg_dump`) y restauración controlada.
-- La población de 1.000 registros y su desglose final deben comprobarse contra PostgreSQL de la instancia definitiva.
-- El resultado de pytest está confirmado en **local**; la ejecución dentro de EC2 quedó bloqueada durante la primera prueba, sin que se reportara un fallo de aserción.
-- La aplicación no implementa pagos, inventario por plato, notificaciones en tiempo real ni correos, funcionalidades fuera del alcance obligatorio del enunciado.
-- Para producción permanente, conviene añadir supervisión, respaldo y automatización del despliegue. El certificado y su renovación simulada fueron comprobados en el laboratorio actual.
-
-## 12. Comprobaciones para la defensa
-
-- Navegador sin sesión: carta pública y detalle de restaurante.
-- Auth0 cliente: pedido de varios platos, precio histórico, cancelación de pendiente, lista de pedidos propios.
-- Auth0 cocina: ver y avanzar solo pedidos del restaurante asignado; rechazar accesos ajenos.
-- Django Admin: filtros de pedidos, búsqueda por cliente, ítems en línea, lectura del total y precio congelado.
-- PostgreSQL: enseñar `CHECK` de estados, cantidades y precios.
-- Infraestructura: `docker compose ps -a`, `sudo ss -ltnp`, logs y redirección HTTP/HTTPS.
-- Pruebas: ejecutar `python -m pytest -q` desde Docker local.
-
-**Seguridad de entrega:** mantener el repositorio **privado**, invitar al docente como colaborador y comprobar que ni el historial Git ni los archivos publicados contienen contraseñas, `.env`, secretos Auth0 ni llaves SSH.
+**Entrega:** no incluir `.env`, contraseñas, tokens, secretos Auth0, archivos `.pem` o llaves SSH en GitHub. Antes de fusionar ramas, comprobar que los archivos documentados se encuentran en la rama definitiva.

@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.forms.models import BaseInlineFormSet
-
+from .models import CuentaLocal
 from .models import (
     Categoria, Cliente, Empleado, ItemPedido, Mesa, Pedido, Plato,
     Promocion, PromocionPlato, Restaurante, Usuario,
@@ -68,9 +68,9 @@ class PedidoAdmin(admin.ModelAdmin):
             item.delete()
         for item in items:
             if item.pk is None:
-                # Congelar el precio del plato cuando se crea el ítem.
+                
                 item.precio_unitario = item.plato.precio
-            # Los ítems existentes conservan siempre su precio congelado.
+           
             item.save()
         formset.save_m2m()
 
@@ -84,7 +84,6 @@ class PedidoAdmin(admin.ModelAdmin):
         Pedido.objects.filter(pk=pedido.pk).update(total=total)
 
 
-# Perfiles de personas (las contraseñas y los roles se administran en Auth0).
 @admin.register(Usuario)
 class UsuarioAdmin(admin.ModelAdmin):
     list_display = ("id", "auth0_sub", "nombre", "apellido", "email", "telefono")
@@ -92,8 +91,7 @@ class UsuarioAdmin(admin.ModelAdmin):
     readonly_fields = ("auth0_sub",)
 
     def get_readonly_fields(self, request, obj=None):
-        # Al crear un usuario interno de prueba se permite ingresar su sub.
-        # Una vez creado, no se modifica la identidad vinculada a Auth0.
+      
         if obj is None:
             return ()
         return self.readonly_fields
@@ -149,3 +147,41 @@ class PromocionPlatoAdmin(admin.ModelAdmin):
     list_filter = ("promocion__restaurante",)
     search_fields = ("promocion__nombre", "plato__nombre")
     list_select_related = ("promocion", "plato")
+@admin.register(CuentaLocal)
+class CuentaLocalAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "username",
+        "rol",
+        "fecha_registro",
+    )
+
+    list_filter = ("rol",)
+    search_fields = ("username",)
+    ordering = ("-fecha_registro",)
+
+    exclude = ("password_hash",)
+
+    readonly_fields = (
+        "username",
+        "fecha_registro",
+    )
+    fields = (
+    "username",
+    "rol",
+    "usuario",
+    "fecha_registro",
+    )
+
+    autocomplete_fields = ("usuario",)
+
+    list_select_related = ("usuario",)
+   
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_active and request.user.is_superuser

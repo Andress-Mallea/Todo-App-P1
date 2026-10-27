@@ -4,8 +4,24 @@ from flask import request
 
 from .errors import AuthError
 from .tokens import verify_decode_jwt
-
-
+from .local_tokens import verify_local_jwt
+from app.models import CuentaLocal
+from app.extensions import db
+PERMISOS_POR_ROL = {
+    "cliente": [
+        "create:pedidos",
+        "read:mis-pedidos",
+    ],
+    "cocina": [
+        "read:pedidos",
+        "update:pedidos",
+    ],
+    "admin": [
+        "read:pedidos",
+        "write:carta",
+        "delete:carta",
+    ],
+}
 def get_token_auth_header():
     """Devuelve el JWT de 'Authorization: Bearer <token>'."""
     auth = request.headers.get("Authorization", "").strip()
@@ -40,14 +56,66 @@ def get_token_from_session():
 
 
 def requires_auth(permission=""):
-    """Para las páginas Flask: 401 sin sesión, 403 sin permiso."""
+    """
+    Permite dos mecanismos:
+    - JWT local HS256 desde Authorization: Bearer
+    - Auth0 RS256 desde la sesión Flask existente
+    """
+
     def decorator(fn):
+
         @wraps(fn)
         def wrapped(*args, **kwargs):
-            payload = verify_decode_jwt(get_token_from_session())
+
+            authorization = request.headers.get(
+                "Authorization", ""
+            ).strip()
+
+            if authorization:
+               
+                token = get_token_auth_header()
+                payload = verify_local_jwt(token)
+
+                sub = payload.get("sub", "")
+
+                if not isinstance(sub, str) or not sub.startswith("local:"):
+                    raise AuthError({
+                        "code": "invalid_token",
+                        "description": "Identidad JWT local inválida."
+                    }, 401)
+
+                try:
+                    usuario_id = int(sub.removeprefix("local:"))
+                except ValueError:
+                    raise AuthError({
+                        "code": "invalid_token",
+                        "description": "Identidad JWT local inválida."
+                    }, 401)
+
+                usuario = db.session.get(CuentaLocal, usuario_id)
+
+                if usuario is None:
+                    raise AuthError({
+                        "code": "invalid_token",
+                        "description": "La cuenta ya no existe."
+                    }, 401)
+
+                rol = usuario.rol
+
+                payload["permissions"] = PERMISOS_POR_ROL.get(rol, [])
+
+            else:
+               
+                payload = verify_decode_jwt(
+                    get_token_from_session()
+                )
+
             check_permissions(permission, payload)
+
             return fn(payload, *args, **kwargs)
+
         return wrapped
+
     return decorator
 
 

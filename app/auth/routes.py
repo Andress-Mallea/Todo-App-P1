@@ -36,21 +36,42 @@ def callback():
         flash(f"No se completó el login: {err.description or err.error}", "error")
         return redirect(url_for("carta.restaurantes"))
 
-    # Nunca confiar en un 'sub' o en permisos suministrados por el navegador.
-    # Validamos el access token con el mismo verificador de las rutas protegidas.
     try:
         payload = verify_decode_jwt(token["access_token"])
-    except (AuthError, KeyError):
-        current_app.logger.warning("Token de Auth0 inválido en el callback")
+    except AuthError as err:
+        current_app.logger.warning(
+            "Error verificando token Auth0: codigo=%s, descripcion=%s",
+            err.error.get("code"),
+            err.error.get("description"),
+        )
+
         session.clear()
-        flash("No se pudo verificar el acceso. Intenta iniciar sesión nuevamente.", "error")
+
+        flash(
+            "No se pudo verificar el acceso. Intenta iniciar sesión nuevamente.",
+            "error"
+        )
+
+        return redirect(url_for("carta.restaurantes"))
+
+    except KeyError:
+        current_app.logger.warning(
+            "La respuesta de Auth0 no contiene access_token"
+        )
+
+        session.clear()
+
+        flash(
+            "No se pudo verificar el acceso. Intenta iniciar sesión nuevamente.",
+            "error"
+        )
+
         return redirect(url_for("carta.restaurantes"))
 
     profile = token.get("userinfo") or {}
     auth0_sub = payload["sub"]
     permisos = payload.get("permissions") or []
-    # La aplicación Auth0 asigna permisos, no relaciones comerciales.
-    # Damos prioridad al personal, incluso si el token trae permisos de cliente.
+    
     permisos = set(permisos)
     es_admin = bool(permisos & {"write:carta", "delete:carta"})
     es_cocina = bool(permisos & {"update:pedidos", "read:pedidos"})
@@ -69,7 +90,7 @@ def callback():
             db.session.add(usuario)
             db.session.flush()
         else:
-            # Mantener los datos registrados en Django cuando Auth0 omita campos.
+            
             if nombre:
                 usuario.nombre = nombre
             if apellido:
@@ -86,8 +107,7 @@ def callback():
                     cargo="Administrador" if es_admin else "Cocina",
                     activo=False,
                 ))
-            # No modificar la asignación de empleados existentes.
-            # No borrar perfiles Cliente antiguos: podrían tener datos relacionados.
+            
         elif es_cliente and empleado_existente is None:
             if Cliente.query.filter_by(usuario_id=usuario.id).first() is None:
                 db.session.add(Cliente(usuario_id=usuario.id, direccion=""))

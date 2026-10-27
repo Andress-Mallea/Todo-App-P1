@@ -1,7 +1,7 @@
 """CRUD de la carta para el rol admin de Auth0 (R2). Django administra el esquema."""
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from .auth import requires_auth
@@ -57,81 +57,295 @@ def _guardar():
 @bp.get('/')
 @requires_auth('write:carta')
 def indice(payload):
-    return render_template('carta_admin/index.html',
-                           restaurantes=Restaurante.query.order_by(Restaurante.nombre).all(),
-                           platos=Plato.query.order_by(Plato.nombre).all(),
-                           puede_eliminar='delete:carta' in payload['permissions'])
+
+    restaurantes = (
+        Restaurante.query
+        .order_by(Restaurante.nombre)
+        .all()
+    )
+
+    platos = (
+        Plato.query
+        .order_by(Plato.nombre)
+        .all()
+    )
+
+    puede_eliminar = 'delete:carta' in payload['permissions']
+
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "restaurantes": [
+                {
+                    "id": r.id,
+                    "nombre": r.nombre,
+                    "descripcion": r.descripcion
+                }
+                for r in restaurantes
+            ],
+            "platos": [
+                {
+                    "id": p.id,
+                    "nombre": p.nombre,
+                    "descripcion": p.descripcion,
+                    "precio": str(p.precio),
+                    "disponible": p.disponible,
+                    "restaurante_id": p.restaurante_id,
+                    "restaurante": p.restaurante.nombre
+                }
+                for p in platos
+            ],
+            "puede_eliminar": puede_eliminar
+        }), 200
+
+    return render_template(
+        'carta_admin/index.html',
+        restaurantes=restaurantes,
+        platos=platos,
+        puede_eliminar=puede_eliminar
+    )
 
 
 @bp.route('/restaurantes/nuevo', methods=['GET', 'POST'])
 @requires_auth('write:carta')
 def nuevo_restaurante(payload):
+
     if request.method == 'POST':
-        db.session.add(Restaurante(nombre=_nombre(), descripcion=request.form.get('descripcion', '').strip()))
+
+        restaurante = Restaurante(
+            nombre=_nombre(),
+            descripcion=request.form.get('descripcion', '').strip()
+        )
+
+        db.session.add(restaurante)
         _guardar()
+
+        if payload["sub"].startswith("local:"):
+            return jsonify({
+                "success": True,
+                "message": "Restaurante creado correctamente.",
+                "restaurante": {
+                    "id": restaurante.id,
+                    "nombre": restaurante.nombre,
+                    "descripcion": restaurante.descripcion
+                }
+            }), 201
+
         flash('Restaurante creado.', 'success')
-        return redirect(url_for('carta_admin.indice'), code=303)
-    return render_template('carta_admin/restaurante_form.html', restaurante=None)
+        return redirect(
+            url_for('carta_admin.indice'),
+            code=303
+        )
+
+    if payload["sub"].startswith("local:"):
+        abort(405, "Utiliza el formulario de administración JWT.")
+
+    return render_template(
+        'carta_admin/restaurante_form.html',
+        restaurante=None
+    )
 
 
 @bp.route('/restaurantes/<int:restaurante_id>/editar', methods=['GET', 'POST'])
 @requires_auth('write:carta')
 def editar_restaurante(payload, restaurante_id):
+
     restaurante = db.get_or_404(Restaurante, restaurante_id)
+
     if request.method == 'POST':
         restaurante.nombre = _nombre()
-        restaurante.descripcion = request.form.get('descripcion', '').strip()
+        restaurante.descripcion = request.form.get(
+            'descripcion', ''
+        ).strip()
+
         _guardar()
+
+        if payload["sub"].startswith("local:"):
+            return jsonify({
+                "success": True,
+                "message": "Restaurante actualizado correctamente.",
+                "restaurante": {
+                    "id": restaurante.id,
+                    "nombre": restaurante.nombre,
+                    "descripcion": restaurante.descripcion
+                }
+            }), 200
+
         flash('Restaurante actualizado.', 'success')
-        return redirect(url_for('carta_admin.indice'), code=303)
-    return render_template('carta_admin/restaurante_form.html', restaurante=restaurante)
+        return redirect(
+            url_for('carta_admin.indice'),
+            code=303
+        )
+
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "restaurante": {
+                "id": restaurante.id,
+                "nombre": restaurante.nombre,
+                "descripcion": restaurante.descripcion
+            }
+        }), 200
+
+    return render_template(
+        'carta_admin/restaurante_form.html',
+        restaurante=restaurante
+    )
 
 
 @bp.post('/restaurantes/<int:restaurante_id>/eliminar')
 @requires_auth('delete:carta')
 def eliminar_restaurante(payload, restaurante_id):
+
     restaurante = db.get_or_404(Restaurante, restaurante_id)
-    # No permitir borrado en cascada de platos o pedidos.
+
     if Plato.query.filter_by(restaurante_id=restaurante_id).first():
         abort(409, 'El restaurante tiene platos. No puede eliminarse.')
+
+    restaurante_eliminado = {
+        "id": restaurante.id,
+        "nombre": restaurante.nombre
+    }
+
     db.session.delete(restaurante)
     _guardar()
+
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "success": True,
+            "message": "Restaurante eliminado correctamente.",
+            "restaurante": restaurante_eliminado
+        }), 200
+
     flash('Restaurante eliminado.', 'success')
-    return redirect(url_for('carta_admin.indice'), code=303)
+    return redirect(
+        url_for('carta_admin.indice'),
+        code=303
+    )
 
 
 @bp.route('/platos/nuevo', methods=['GET', 'POST'])
 @requires_auth('write:carta')
 def nuevo_plato(payload):
-    if request.method == 'POST':
-        db.session.add(Plato(**_datos_plato()))
-        _guardar()
-        flash('Plato creado.', 'success')
-        return redirect(url_for('carta_admin.indice'), code=303)
-    return render_template('carta_admin/plato_form.html', plato=None,
-                           restaurantes=Restaurante.query.order_by(Restaurante.nombre).all())
 
+    if request.method == 'POST':
+
+        datos = _datos_plato()
+
+        plato = Plato(**datos)
+        db.session.add(plato)
+        _guardar()
+
+        if payload["sub"].startswith("local:"):
+            return jsonify({
+                "success": True,
+                "message": "Plato creado correctamente.",
+                "plato": {
+                    "id": plato.id,
+                    "nombre": plato.nombre,
+                    "descripcion": plato.descripcion,
+                    "precio": str(plato.precio),
+                    "disponible": plato.disponible,
+                    "restaurante_id": plato.restaurante_id
+                }
+            }), 201
+
+        flash('Plato creado.', 'success')
+        return redirect(
+            url_for('carta_admin.indice'),
+            code=303
+        )
+
+    if payload["sub"].startswith("local:"):
+        abort(405, "Utiliza el formulario de administración JWT.")
+
+    return render_template(
+        'carta_admin/plato_form.html',
+        plato=None,
+        restaurantes=Restaurante.query.order_by(
+            Restaurante.nombre
+        ).all()
+    )
 
 @bp.route('/platos/<int:plato_id>/editar', methods=['GET', 'POST'])
 @requires_auth('write:carta')
 def editar_plato(payload, plato_id):
+
     plato = db.get_or_404(Plato, plato_id)
+
     if request.method == 'POST':
+       
         datos = _datos_plato()
+
         for campo, valor in datos.items():
             setattr(plato, campo, valor)
-        _guardar()
-        flash('Plato actualizado.', 'success')
-        return redirect(url_for('carta_admin.indice'), code=303)
-    return render_template('carta_admin/plato_form.html', plato=plato,
-                           restaurantes=Restaurante.query.order_by(Restaurante.nombre).all())
 
+        _guardar()
+
+        if payload["sub"].startswith("local:"):
+            return jsonify({
+                "success": True,
+                "message": "Plato actualizado correctamente.",
+                "plato": {
+                    "id": plato.id,
+                    "nombre": plato.nombre,
+                    "descripcion": plato.descripcion,
+                    "precio": str(plato.precio),
+                    "disponible": plato.disponible,
+                    "restaurante_id": plato.restaurante_id
+                }
+            }), 200
+
+        flash('Plato actualizado.', 'success')
+        return redirect(
+            url_for('carta_admin.indice'),
+            code=303
+        )
+
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "plato": {
+                "id": plato.id,
+                "nombre": plato.nombre,
+                "descripcion": plato.descripcion,
+                "precio": str(plato.precio),
+                "disponible": plato.disponible,
+                "restaurante_id": plato.restaurante_id
+            }
+        }), 200
+
+    return render_template(
+        'carta_admin/plato_form.html',
+        plato=plato,
+        restaurantes=Restaurante.query.order_by(
+            Restaurante.nombre
+        ).all()
+    )
 
 @bp.post('/platos/<int:plato_id>/eliminar')
 @requires_auth('delete:carta')
 def eliminar_plato(payload, plato_id):
+
     plato = db.get_or_404(Plato, plato_id)
+
+    plato_eliminado = {
+        "id": plato.id,
+        "nombre": plato.nombre
+    }
+
     db.session.delete(plato)
-    _guardar()  # PostgreSQL impide borrar platos usados por ItemPedido.
-    flash('Plato eliminado.', 'success')
-    return redirect(url_for('carta_admin.indice'), code=303)
+    _guardar()
+    if payload["sub"].startswith("local:"):
+        return jsonify({
+            "success": True,
+            "message": "Plato eliminado correctamente.",
+            "plato": plato_eliminado
+        }), 200
+
+    flash("Plato eliminado.", "success")
+    return redirect(
+        url_for("carta_admin.indice"),
+        code=303
+    )
+@bp.get('/local')
+def panel_local():
+       
+    return render_template('carta_admin/index_local.html')

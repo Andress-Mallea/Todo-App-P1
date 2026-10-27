@@ -11,8 +11,6 @@ def utcnow():
     return datetime.now(timezone.utc)
 
 
-# Modelo antiguo: se conserva temporalmente porque las rutas existentes pueden importarlo.
-
 class Restaurante(db.Model):
     __tablename__ = "carta_restaurante"
 
@@ -78,9 +76,6 @@ class ItemPedido(db.Model):
     pedido = db.relationship("Pedido", back_populates="items")
     plato = db.relationship("Plato", back_populates="items_pedido")
 
-
-# Perfiles creados mediante las migraciones de Django (carta.0002).
-# Auth0 gestiona identidad y permisos; estas tablas solo vinculan personas y restaurantes.
 class Usuario(db.Model):
     __tablename__ = "carta_usuario"
 
@@ -118,3 +113,50 @@ class Cliente(db.Model):
     fecha_registro = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
     usuario = db.relationship("Usuario", backref=db.backref("perfil_cliente", uselist=False))
+    
+class CuentaLocal(db.Model):
+    __tablename__ = "carta_cuentalocal"
+    
+    id = db.Column(
+        db.BigInteger,
+        primary_key=True
+    )
+    usuario_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("carta_usuario.id", ondelete="SET NULL"),
+        unique=True,
+        nullable=True
+    )
+    username = db.Column(
+        db.String(80),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    password_hash = db.Column(
+        db.String(255),
+        nullable=False
+    )
+
+    fecha_registro = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=utcnow
+    )
+    ROL_CLIENTE = "cliente"
+    ROL_COCINA = "cocina"
+    ROL_ADMIN = "admin"
+
+    rol = db.Column(
+        db.String(20),
+        nullable=False,
+        default=ROL_CLIENTE
+    )
+    def set_password(self, password):
+        from werkzeug.security import generate_password_hash
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        from werkzeug.security import check_password_hash
+        return check_password_hash(self.password_hash, password)
